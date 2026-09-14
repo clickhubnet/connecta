@@ -1,0 +1,30 @@
+import {
+  BarChart3,
+  Bot,
+  CalendarCheck,
+  ChartPie,
+  Headphones,
+  MessageCircleMore,
+  ReceiptText,
+  MapPinned,
+  Megaphone,
+  Settings,
+  Users,
+  Workflow,
+} from "lucide-react";
+import { permissions } from "@/constants/permissions";
+
+export const navigationItems = [
+  { title: "Dashboard", href: "/dashboard", icon: BarChart3, permission: permissions.dashboardView },
+  { title: "Visão Geral", href: "/visao-geral", icon: ChartPie, permission: permissions.dashboardView },
+  { title: "Conversas", href: "/conversas", icon: MessageCircleMore, permission: permissions.agentsEdit, employeeVisible: true },
+  { title: "Envio em Massa", href: "/envio-em-massa", icon: Megaphone, permission: permissions.agentsEdit, badgeLabel: "Novo", badgeTone: "green" },
+  { title: "Leads", href: "/leads", icon: Users, permission: permissions.leadsView },
+  { title: "Compromissos", href: "/compromissos", icon: CalendarCheck, permission: permissions.appointmentsView },
+  { title: "Despesas", href: "/despesas", icon: ReceiptText, permission: permissions.expensesView },
+  { title: "SDR por Voz", href: "/sdr-por-voz", icon: Headphones, permission: permissions.dashboardView, comingSoon: true },
+  { title: "N8N", href: "/n8n", icon: Workflow, permission: permissions.agentsEdit },
+  { title: "Cadastros/Fornecedores", href: "/usuarios", icon: Bot, permission: permissions.usersEdit, adminOnly: true },
+  { title: "CEPs", href: "/ceps", icon: MapPinned, permission: permissions.cepsView },
+  { title: "Configurações", href: "/configuracoes", icon: Settings, permission: permissions.settingsView, employeeVisible: true },
+] as const;

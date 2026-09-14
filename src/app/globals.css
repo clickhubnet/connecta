@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 0 0% 97%;
+  --foreground: 0 0% 8%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 8%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 8%;
+  --primary: 358 78% 47%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 93%;
+  --secondary-foreground: 0 0% 10%;
+  --muted: 0 0% 93%;
+  --muted-foreground: 0 0% 42%;
+  --accent: 0 80% 96%;
+  --accent-foreground: 358 78% 24%;
+  --destructive: 0 74% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 88%;
+  --input: 0 0% 82%;
+  --ring: 358 78% 47%;
+  --radius: 0.875rem;
+}
+
+.dark {
+  --background: 0 0% 6%;
+  --foreground: 0 0% 96%;
+  --card: 0 0% 10%;
+  --card-foreground: 0 0% 96%;
+  --popover: 0 0% 10%;
+  --popover-foreground: 0 0% 96%;
+  --primary: 358 78% 52%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 16%;
+  --secondary-foreground: 210 40% 96%;
+  --muted: 0 0% 16%;
+  --muted-foreground: 0 0% 72%;
+  --accent: 358 42% 18%;
+  --accent-foreground: 0 0% 96%;
+  --destructive: 0 74% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 22%;
+  --input: 0 0% 24%;
+  --ring: 358 78% 52%;
+}
+
+* {
+  @apply border-border;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  font-feature-settings: "ss01", "cv11";
+}
+
+.login-page { color-scheme: light; --background: 0 0% 97%; --foreground: 0 0% 8%; --ring: 358 78% 47%; }
+
+@layer components {
+  .crm-surface {
+    background-image: radial-gradient(ellipse at 100% 0%, hsl(var(--primary) / 0.12), transparent 50%), linear-gradient(135deg, hsl(var(--primary) / 0.025), transparent 65%);
+  }
+  .crm-sidebar {
+    background: radial-gradient(ellipse at 0% 0%, #d71920 0%, transparent 52%), linear-gradient(165deg, #191919 0%, #0d0d0f 58%, #050506 100%);
+    box-shadow: 8px 0 40px rgb(15 15 15 / 0.1);
+  }
+  .crm-card {
+    box-shadow: 0 2px 5px rgb(20 20 20 / 0.025), 0 8px 24px rgb(20 20 20 / 0.025);
+  }
+  .crm-intro {
+    animation: crm-enter 450ms ease-out both;
+  }
+  .crm-hero {
+    background: radial-gradient(ellipse at 85% 10%, #d71920 0%, transparent 55%), linear-gradient(115deg, #111113, #242428);
+    box-shadow: 0 12px 30px rgb(20 20 20 / 0.16);
+  }
+  .crm-card-heading {
+    background: linear-gradient(100deg, hsl(var(--primary) / 0.065), transparent 85%);
+    border-bottom: 1px solid hsl(var(--border));
+    margin-bottom: 1.25rem;
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+}
+
+@keyframes crm-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* The inbox owns its viewport; only the contact list and messages scroll. */
+.wa-inbox { display: flex; flex-direction: column; gap: 8px; height: calc(100dvh - 88px); min-height: 400px; }
+.wa-toolbar { flex-shrink: 0; box-shadow: none; }
+.wa-columns { display: grid; grid-template-columns: 320px minmax(0, 1fr); flex: 1; min-height: 0; overflow: hidden; border: 1px solid hsl(var(--border)); border-radius: 12px; }
+.wa-list-panel, .wa-chat-panel { display: flex; flex-direction: column; min-height: 0; border: 0; border-radius: 0; box-shadow: none; overflow: hidden; }
+.wa-list-panel { border-right: 1px solid hsl(var(--border)); }
+.wa-chat-panel { background: #efeae2; }
+.wa-messages { background-color: #efeae2; background-image: radial-gradient(#a49b8e22 1px, transparent 1px); background-size: 18px 18px; }
+.dark .wa-messages, .dark .wa-chat-panel { background-color: #101e25; }
+[data-sidebar-collapsed="true"] .crm-sidebar { width: 80px; }
+[data-sidebar-collapsed="true"] .crm-sidebar > div > div:first-child { padding: 16px; }
+[data-sidebar-collapsed="true"] .crm-sidebar > div > div:first-child > div:last-child,
+[data-sidebar-collapsed="true"] .crm-sidebar nav p,
+[data-sidebar-collapsed="true"] .crm-sidebar nav a > span:not(:first-child),
+[data-sidebar-collapsed="true"] .crm-sidebar nav a > svg,
+[data-sidebar-collapsed="true"] .crm-sidebar nav [aria-disabled] > span:not(:first-child),
+[data-sidebar-collapsed="true"] .crm-sidebar > div > div:last-child a > span:not(:first-child),
+[data-sidebar-collapsed="true"] .crm-sidebar > div > div:last-child a > svg { display: none; }
+[data-sidebar-collapsed="true"] .crm-sidebar nav a,
+[data-sidebar-collapsed="true"] .crm-sidebar nav [aria-disabled] { justify-content: center; padding-inline: 4px; }
+.crm-sidebar nav { scrollbar-width: none; -ms-overflow-style: none; }
+.crm-sidebar nav::-webkit-scrollbar { display: none; width: 0; height: 0; }
+@media (max-width: 1023px) {
+  .wa-columns { grid-template-columns: minmax(0, 1fr); }
+  .wa-inbox[data-mobile-chat="false"] .wa-chat-panel,
+  .wa-inbox[data-mobile-chat="true"] .wa-list-panel { display: none; }
+}
+@media (max-width: 767px) {
+  .wa-inbox { height: calc(100dvh - 152px - env(safe-area-inset-bottom)); min-height: 0; }
+  .wa-toolbar h3 { font-size: 13px; }
+  .crm-mobile-nav { padding-bottom: env(safe-area-inset-bottom); }
+  .crm-main { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+  .crm-surface input, .crm-surface textarea, .crm-surface select { font-size: 16px; }
+  .wa-inbox[data-mobile-chat="true"] .wa-toolbar { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crm-intro { animation: none; }
+}
+
+::selection { background: hsl(var(--primary) / 0.18); }
+
+:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}

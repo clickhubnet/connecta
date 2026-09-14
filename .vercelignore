@@ -1,0 +1,11 @@
+node_modules
+.next
+.env
+.env.*
+dist
+coverage
+*.log
+*.pdf
+public/*.xls
+public/*.xlsx
+tsconfig.tsbuildinfo

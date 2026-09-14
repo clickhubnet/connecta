@@ -1,0 +1,27 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Connecta">
+  <rect width="256" height="256" rx="44" fill="#0B0B0D"/>
+  <path d="M128 32C82 32 44 64 36 108" stroke="#D71920" stroke-width="23" stroke-linecap="round"/>
+  <path d="M36 148C44 192 82 224 128 224" stroke="#D71920" stroke-width="23" stroke-linecap="round"/>
+  <path d="M128 224C174 224 212 192 220 148" stroke="#D71920" stroke-width="23" stroke-linecap="round"/>
+  <path d="M220 108C212 64 174 32 128 32" stroke="#D71920" stroke-width="23" stroke-linecap="round"/>
+  <path d="M128 76C99 76 75 97 69 124" stroke="#E21A22" stroke-width="20" stroke-linecap="round"/>
+  <path d="M69 132C75 159 99 180 128 180" stroke="#E21A22" stroke-width="20" stroke-linecap="round"/>
+  <path d="M164 124C176 124 182 120 189 113C198 105 206 101 219 101C234 101 246 113 246 128C246 143 234 155 219 155C206 155 198 151 189 143C182 136 176 132 164 132H118V124H164Z" fill="url(#bridge)"/>
+  <circle cx="128" cy="128" r="32" fill="url(#nodeLeft)"/>
+  <circle cx="219" cy="128" r="27" fill="url(#nodeRight)"/>
+  <defs>
+    <linearGradient id="bridge" x1="118" y1="128" x2="246" y2="128" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F5F5F5"/>
+      <stop offset="0.45" stop-color="#BEBEBE"/>
+      <stop offset="1" stop-color="#6B6B6B"/>
+    </linearGradient>
+    <linearGradient id="nodeLeft" x1="96" y1="128" x2="160" y2="128" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#050505"/>
+      <stop offset="1" stop-color="#2B2B2B"/>
+    </linearGradient>
+    <linearGradient id="nodeRight" x1="192" y1="128" x2="246" y2="128" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#303030"/>
+      <stop offset="1" stop-color="#777"/>
+    </linearGradient>
+  </defs>
+</svg>

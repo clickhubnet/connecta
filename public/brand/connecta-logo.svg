@@ -1,0 +1,33 @@
+<svg width="1280" height="360" viewBox="0 0 1280 360" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Connecta Telecom">
+  <rect width="1280" height="360" fill="white"/>
+  <g transform="translate(74 46)">
+    <path d="M185 26C120 26 66 72 54 134" stroke="#D71920" stroke-width="30" stroke-linecap="round"/>
+    <path d="M54 188C66 250 120 296 185 296" stroke="#D71920" stroke-width="30" stroke-linecap="round"/>
+    <path d="M185 296C250 296 304 250 316 188" stroke="#D71920" stroke-width="30" stroke-linecap="round"/>
+    <path d="M316 134C304 72 250 26 185 26" stroke="#D71920" stroke-width="30" stroke-linecap="round"/>
+    <path d="M185 88C145 88 111 117 103 156" stroke="#E21A22" stroke-width="27" stroke-linecap="round"/>
+    <path d="M103 166C111 205 145 234 185 234" stroke="#E21A22" stroke-width="27" stroke-linecap="round"/>
+    <path d="M236 156C251 156 260 151 269 142C281 130 292 124 311 124C332 124 349 141 349 162C349 183 332 200 311 200C292 200 281 194 269 182C260 173 251 168 236 168H174V156H236Z" fill="url(#bridge)"/>
+    <circle cx="185" cy="162" r="46" fill="url(#nodeLeft)"/>
+    <circle cx="311" cy="162" r="37" fill="url(#nodeRight)"/>
+  </g>
+  <g fill="#020202">
+    <text x="460" y="183" font-family="Arial Black, Montserrat, Arial, sans-serif" font-size="132" font-weight="900" letter-spacing="3">CONNECTA</text>
+    <text x="888" y="286" font-family="Arial Black, Montserrat, Arial, sans-serif" font-size="70" font-weight="900" letter-spacing="16">TELECOM</text>
+  </g>
+  <defs>
+    <linearGradient id="bridge" x1="174" y1="162" x2="349" y2="162" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0A0A0A"/>
+      <stop offset="0.54" stop-color="#2F2F2F"/>
+      <stop offset="1" stop-color="#6B6B6B"/>
+    </linearGradient>
+    <linearGradient id="nodeLeft" x1="139" y1="162" x2="231" y2="162" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#020202"/>
+      <stop offset="1" stop-color="#282828"/>
+    </linearGradient>
+    <linearGradient id="nodeRight" x1="274" y1="162" x2="348" y2="162" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2C2C2C"/>
+      <stop offset="1" stop-color="#6A6A6A"/>
+    </linearGradient>
+  </defs>
+</svg>

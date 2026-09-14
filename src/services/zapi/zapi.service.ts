@@ -1,0 +1,170 @@
+import { getZapiRuntimeConfig } from "@/lib/integration-config";
+import { writeTechnicalLog } from "@/lib/logger";
+
+type SendTextInput = {
+  phone: string;
+  message: string;
+  delayTypingSeconds?: number;
+  config?: Partial<ZapiConfig>;
+};
+
+type SendMediaInput = {
+  phone: string;
+  config?: Partial<ZapiConfig>;
+};
+
+type ZapiConfig = Awaited<ReturnType<typeof getZapiRuntimeConfig>>;
+
+export class ZapiService {
+  async markAsRead(messageId: string, phone: string, config?: Partial<ZapiConfig>) {
+    return this.optionalPost("read-message", { messageId, phone }, config);
+  }
+
+  async sendText({ phone, message, delayTypingSeconds, config }: SendTextInput) {
+    const zapiConfig = { ...(await getZapiRuntimeConfig()), ...cleanConfig(config) };
+    if (!zapiConfig.instanceId || !zapiConfig.token) {
+      throw new Error(`Z-API nao configurada. instanceId=${Boolean(zapiConfig.instanceId)} token=${Boolean(zapiConfig.token)} clientToken=${Boolean(zapiConfig.clientToken)}`);
+    }
+
+    const endpoint = `${zapiConfig.baseUrl}/instances/${zapiConfig.instanceId}/token/${zapiConfig.token}/send-text`;
+    const body = {
+      phone,
+      message,
+      ...(delayTypingSeconds
+        ? { delayTyping: Math.min(15, Math.max(1, Math.round(delayTypingSeconds))) }
+        : {}),
+    };
+
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(zapiConfig.clientToken ? { "Client-Token": zapiConfig.clientToken } : {}),
+          },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(20_000),
+        });
+
+        if (response.ok) {
+          return response.json() as Promise<unknown>;
+        }
+
+        const responseBody = await response.text();
+        await writeTechnicalLog({
+          level: "ERROR",
+          category: "integration",
+          message: `Falha ao enviar mensagem pela Z-API (tentativa ${attempt}).`,
+          method: "POST",
+          endpoint: "send-text",
+          statusCode: response.status,
+          integration: "zapi",
+          metadata: { response: responseBody.slice(0, 500) },
+        });
+
+        if (response.status < 500 || attempt === 2) {
+          throw new Error(`Falha ao enviar mensagem pela Z-API. status=${response.status} body=${responseBody.slice(0, 300)}`);
+        }
+      } catch (error) {
+        if (attempt === 2) {
+          if (error instanceof Error) {
+            throw new Error(`Falha ao enviar mensagem pela Z-API na tentativa ${attempt}: ${error.message}`);
+          }
+          throw error;
+        }
+        await wait(500);
+      }
+    }
+
+    throw new Error("Falha ao enviar mensagem pela Z-API.");
+  }
+
+  async sendImage({ phone, image, caption, config }: SendMediaInput & { image: string; caption?: string }) {
+    return this.post("send-image", { phone, image, caption }, config);
+  }
+
+  async sendDocument({ phone, document, fileName, caption, config }: SendMediaInput & { document: string; fileName: string; caption?: string }) {
+    return this.post("send-document", { phone, document, fileName, caption }, config);
+  }
+
+  async sendAudio({ phone, audio, config }: SendMediaInput & { audio: string }) {
+    return this.post("send-audio", { phone, audio }, config);
+  }
+
+  async sendVideo({ phone, video, caption, config }: SendMediaInput & { video: string; caption?: string }) {
+    return this.post("send-video", { phone, video, caption }, config);
+  }
+
+  private async post(action: string, body: Record<string, unknown>, config?: Partial<ZapiConfig>) {
+    const zapiConfig = { ...(await getZapiRuntimeConfig()), ...cleanConfig(config) };
+    if (!zapiConfig.instanceId || !zapiConfig.token) {
+      throw new Error(`Z-API nao configurada. instanceId=${Boolean(zapiConfig.instanceId)} token=${Boolean(zapiConfig.token)} clientToken=${Boolean(zapiConfig.clientToken)}`);
+    }
+
+    const response = await fetch(
+      `${zapiConfig.baseUrl}/instances/${zapiConfig.instanceId}/token/${zapiConfig.token}/${action}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(zapiConfig.clientToken ? { "Client-Token": zapiConfig.clientToken } : {}),
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(20_000),
+      },
+    );
+
+    if (response.ok) {
+      return response.json().catch(() => null);
+    }
+
+    const responseBody = await response.text();
+    await writeTechnicalLog({
+      level: "ERROR",
+      category: "integration",
+      message: `Falha ao enviar mídia pela Z-API (${action}).`,
+      method: "POST",
+      endpoint: action,
+      statusCode: response.status,
+      integration: "zapi",
+      metadata: { response: responseBody.slice(0, 500) },
+    });
+
+    throw new Error(`Falha ao enviar mídia pela Z-API (${action}). status=${response.status} body=${responseBody.slice(0, 300)}`);
+  }
+
+  private async optionalPost(action: string, body: Record<string, string>, config?: Partial<ZapiConfig>) {
+    try {
+      const zapiConfig = { ...(await getZapiRuntimeConfig()), ...cleanConfig(config) };
+      if (!zapiConfig.instanceId || !zapiConfig.token) {
+        return false;
+      }
+
+      const response = await fetch(
+        `${zapiConfig.baseUrl}/instances/${zapiConfig.instanceId}/token/${zapiConfig.token}/${action}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(zapiConfig.clientToken ? { "Client-Token": zapiConfig.clientToken } : {}),
+          },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(2_000),
+        },
+      );
+
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function cleanConfig(config?: Partial<ZapiConfig>) {
+  return Object.fromEntries(Object.entries(config ?? {}).filter(([, value]) => Boolean(value))) as Partial<ZapiConfig>;
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}

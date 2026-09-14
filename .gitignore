@@ -1,0 +1,17 @@
+node_modules
+.next
+.env
+.env.local
+dist
+coverage
+tsconfig.tsbuildinfo
+*.log
+*.pdf
+data/*.xls
+data/*.xlsx
+public/*.xls
+public/*.xlsx
+.vercel
+.codex-backups
+.env*
+!.env.example
