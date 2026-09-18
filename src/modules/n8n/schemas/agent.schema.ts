@@ -13,11 +13,6 @@ export const createAgentSchema = z.object({
   enableTyping: z.boolean().optional(),
   enableReplyDelay: z.boolean().optional(),
   openAiModel: z.string().optional(),
-  zapiBaseUrl: z.string().optional(),
-  zapiInstanceId: z.string().optional(),
-  zapiToken: z.string().optional(),
-  zapiClientToken: z.string().optional(),
-  zapiWhatsappNumber: z.string().optional(),
   planIds: z.array(z.string().uuid()).optional(),
 });
 

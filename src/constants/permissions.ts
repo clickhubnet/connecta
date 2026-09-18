@@ -23,7 +23,6 @@ export const permissions = {
   agentsEdit: "agents:edit",
   plansEdit: "plans:edit",
   openAiEdit: "openai:edit",
-  zapiEdit: "zapi:edit",
   settingsView: "settings:view",
   settingsEdit: "settings:edit",
 } as const;

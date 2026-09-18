@@ -13,11 +13,6 @@ export type CreateAgentInput = {
   enableTyping?: boolean;
   enableReplyDelay?: boolean;
   openAiModel?: string;
-  zapiBaseUrl?: string;
-  zapiInstanceId?: string;
-  zapiToken?: string;
-  zapiClientToken?: string;
-  zapiWhatsappNumber?: string;
   planIds?: string[];
 };
 

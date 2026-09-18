@@ -1,6 +1,6 @@
 # Envio em massa pela API oficial da Meta
 
-Esta etapa troca apenas o envio em massa para a WhatsApp Cloud API. O atendimento, chatbot e demais fluxos que ainda usam Z-API permanecem como estão.
+O sistema usa a WhatsApp Cloud API para disparos em massa, atendimento, chatbot e webhooks.
 
 ## Variaveis de ambiente
 
@@ -11,12 +11,14 @@ META_WHATSAPP_ACCESS_TOKEN=""
 META_WHATSAPP_PHONE_NUMBER_ID=""
 META_WHATSAPP_BUSINESS_ACCOUNT_ID=""
 META_GRAPH_API_VERSION="vXX.0"
+META_WEBHOOK_VERIFY_TOKEN=""
 ```
 
 - `META_WHATSAPP_ACCESS_TOKEN`: token de producao com acesso ao WhatsApp Business Account.
 - `META_WHATSAPP_PHONE_NUMBER_ID`: ID do numero de telefone usado para enviar mensagens.
 - `META_WHATSAPP_BUSINESS_ACCOUNT_ID`: ID da WABA, usado para listar templates aprovados.
 - `META_GRAPH_API_VERSION`: versao do Graph API usada pelo app, no formato `vXX.0`.
+- `META_WEBHOOK_VERIFY_TOKEN`: token livre definido por voce e repetido no painel da Meta para validar o webhook.
 
 O token precisa das permissoes de mensagens e gerenciamento do WhatsApp Business. A propria documentacao da Meta mostra esse fluxo na colecao oficial da WhatsApp Cloud API, incluindo listagem de numeros, templates e envio de template:
 
@@ -38,4 +40,3 @@ Nesta primeira etapa, o lote e limitado a 100 contatos, com concorrencia de 5 en
 - Botao estatico de URL, telefone e resposta rapida pode permanecer no template.
 - URL variavel em botao, variaveis nomeadas, carrossel e templates de autenticacao ainda nao sao enviados por este fluxo.
 - As variaveis preenchidas valem para todos os contatos do lote.
-

@@ -3,11 +3,6 @@ import { prisma } from "@/lib/prisma";
 const settingKeys = [
   "openAiApiKey",
   "openAiModel",
-  "zapiBaseUrl",
-  "zapiInstanceId",
-  "zapiToken",
-  "zapiClientToken",
-  "zapiWhatsappNumber",
 ] as const;
 
 type SettingKey = (typeof settingKeys)[number];
@@ -29,16 +24,5 @@ export async function getOpenAiRuntimeConfig() {
   return {
     apiKey: settings.get("openAiApiKey") || process.env.OPENAI_API_KEY || "",
     model: settings.get("openAiModel") || process.env.OPENAI_MODEL || "gpt-4o-mini",
-  };
-}
-
-export async function getZapiRuntimeConfig() {
-  const settings = await getSettingsMap();
-  return {
-    baseUrl: settings.get("zapiBaseUrl") || process.env.ZAPI_BASE_URL || "https://api.z-api.io",
-    instanceId: settings.get("zapiInstanceId") || process.env.ZAPI_INSTANCE_ID || "",
-    token: settings.get("zapiToken") || process.env.ZAPI_TOKEN || "",
-    clientToken: settings.get("zapiClientToken") || process.env.ZAPI_CLIENT_TOKEN || "",
-    whatsappNumber: settings.get("zapiWhatsappNumber") || process.env.ZAPI_WHATSAPP_NUMBER || "",
   };
 }

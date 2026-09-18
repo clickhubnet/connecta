@@ -3,7 +3,7 @@ import { CepRepository } from "@/repositories/cep.repository";
 import { ChatbotRepository } from "@/repositories/chatbot.repository";
 import { OpenAiService } from "@/services/openai/openai.service";
 import type { ExtractedCustomerData } from "@/services/openai/openai.service";
-import { ZapiService } from "@/services/zapi/zapi.service";
+import { MetaWhatsappService } from "@/services/meta/meta-whatsapp.service";
 import { onlyDigits } from "@/utils/mask";
 
 const VALID_BILLING_DAYS = [5, 8, 10, 15, 20, 25];
@@ -23,7 +23,7 @@ export class ChatbotEngineService {
   constructor(
     private readonly cepRepository = new CepRepository(),
     private readonly chatbotRepository = new ChatbotRepository(),
-    private readonly zapiService = new ZapiService(),
+    private readonly whatsappService = new MetaWhatsappService(),
     private readonly openAiService = new OpenAiService(),
   ) {}
 
@@ -64,10 +64,9 @@ export class ChatbotEngineService {
     const memory = normalizeMemory(conversation.memory);
     const resumePrompt = callResumePrompt(conversation.state, memory, agent);
     const reply = `Não consigo atender ligações por aqui, mas continuo com você pelo WhatsApp. 😊\n\n${resumePrompt}`;
-    await this.zapiService.sendText({
+    await this.whatsappService.sendText({
       phone,
       message: reply,
-      config: agentConfig(agent, input.instanceId),
     });
     await this.chatbotRepository.saveMessage({
       conversationId: conversation.id,
@@ -137,7 +136,7 @@ export class ChatbotEngineService {
     }
 
     if (input.providerId) {
-      await this.zapiService.markAsRead(input.providerId, phone, agentConfig(agent, input.instanceId));
+      await this.whatsappService.markAsRead(input.providerId);
     }
 
     const next = await this.nextResponse({
@@ -160,11 +159,10 @@ export class ChatbotEngineService {
     const typingEnabled =
       (agent?.enableReplyDelay ?? true) && (agent?.enableTyping ?? true);
 
-    await this.zapiService.sendText({
+    await this.whatsappService.sendText({
       phone,
       message: next.reply,
       delayTypingSeconds: typingEnabled ? delaySeconds : undefined,
-      config: agentConfig(agent, input.instanceId),
     });
     const memoryWithFollowUp = prepareFollowUpMemory(next.memory, next.state);
     await this.chatbotRepository.saveBotReply({
@@ -2007,35 +2005,6 @@ function interpolate(template: string, memory: ChatMemory, agentName?: string) {
     .replaceAll("{{nome}}", getFirstName(memory.name) || "cliente")
     .replaceAll("{{cep}}", formatCep(memory.cep))
     .replaceAll("{{endereco}}", formatFullAddress(memory));
-}
-
-function agentConfig(
-  agent: Awaited<ReturnType<ChatbotRepository["getAgentByInstance"]>>,
-  runtimeInstanceId?: string,
-) {
-  if (!agent && !runtimeInstanceId) return undefined;
-  const resolvedAgent = agent ?? undefined;
-  if (runtimeInstanceId) {
-    if (resolvedAgent?.zapiInstanceId === runtimeInstanceId) {
-      return {
-        baseUrl: resolvedAgent.zapiBaseUrl ?? undefined,
-        instanceId: resolvedAgent.zapiInstanceId ?? runtimeInstanceId,
-        token: resolvedAgent.zapiToken ?? undefined,
-        clientToken: resolvedAgent.zapiClientToken ?? undefined,
-        whatsappNumber: resolvedAgent.zapiWhatsappNumber ?? undefined,
-      };
-    }
-    return {
-      instanceId: runtimeInstanceId,
-    };
-  }
-  return {
-    baseUrl: resolvedAgent?.zapiBaseUrl ?? undefined,
-    instanceId: resolvedAgent?.zapiInstanceId ?? undefined,
-    token: resolvedAgent?.zapiToken ?? undefined,
-    clientToken: resolvedAgent?.zapiClientToken ?? undefined,
-    whatsappNumber: resolvedAgent?.zapiWhatsappNumber ?? undefined,
-  };
 }
 
 function flowMessage(flow: unknown, state: string, fallback: string) {

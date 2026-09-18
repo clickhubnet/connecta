@@ -1,6 +1,6 @@
 # ConnectaCorp CRM
 
-CRM comercial da Connecta Telecom feito com Next.js, Prisma, Supabase, WhatsApp/Z-API, WhatsApp Cloud API da Meta e OpenAI.
+CRM comercial da Connecta Telecom feito com Next.js, Prisma, Supabase, WhatsApp Cloud API da Meta e OpenAI.
 
 ## Desenvolvimento
 
@@ -30,16 +30,11 @@ OPENAI_API_KEY=""
 OPENAI_MODEL="gpt-4o-mini"
 OPENAI_TRANSCRIBE_MODEL="gpt-4o-mini-transcribe"
 
-ZAPI_BASE_URL="https://api.z-api.io"
-ZAPI_INSTANCE_ID=""
-ZAPI_TOKEN=""
-ZAPI_CLIENT_TOKEN=""
-ZAPI_WHATSAPP_NUMBER=""
-
 META_WHATSAPP_ACCESS_TOKEN=""
 META_WHATSAPP_PHONE_NUMBER_ID=""
 META_WHATSAPP_BUSINESS_ACCOUNT_ID=""
 META_GRAPH_API_VERSION=""
+META_WEBHOOK_VERIFY_TOKEN=""
 
 APP_NAME="CONNECTA TELECOM CRM"
 APP_VERSION="1.0.0"

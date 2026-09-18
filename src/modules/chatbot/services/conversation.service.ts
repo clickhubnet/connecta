@@ -1,7 +1,7 @@
 import type { Prisma, User } from "@prisma/client";
 import { ChatbotRepository } from "@/repositories/chatbot.repository";
 import { writeTechnicalLog } from "@/lib/logger";
-import { ZapiService } from "@/services/zapi/zapi.service";
+import { MetaWhatsappService } from "@/services/meta/meta-whatsapp.service";
 
 type ConversationMemory = {
   tags?: ConversationTag[];
@@ -22,7 +22,7 @@ const DEFAULT_TAG_COLOR = "sky";
 export class ConversationService {
   constructor(
     private readonly chatbotRepository = new ChatbotRepository(),
-    private readonly zapiService = new ZapiService(),
+    private readonly whatsappService = new MetaWhatsappService(),
   ) {}
 
   async list(params?: {
@@ -223,10 +223,9 @@ export class ConversationService {
       throw new Error("Conversa não encontrada.");
     }
 
-    await this.zapiService.sendText({
+    await this.whatsappService.sendText({
       phone: conversation.phone,
       message: params.content,
-      config: agentConfig(conversation.agent),
     });
 
     await this.chatbotRepository.saveMessage({
@@ -258,35 +257,29 @@ export class ConversationService {
       throw new Error("Conversa não encontrada.");
     }
 
-    const config = agentConfig(conversation.agent);
-
     if (params.mimeType.startsWith("image/")) {
-      await this.zapiService.sendImage({
+      await this.whatsappService.sendImage({
         phone: conversation.phone,
         image: params.dataUrl,
         caption: params.caption,
-        config,
       });
     } else if (params.mimeType.startsWith("audio/")) {
-      await this.zapiService.sendAudio({
+      await this.whatsappService.sendAudio({
         phone: conversation.phone,
         audio: params.dataUrl,
-        config,
       });
     } else if (params.mimeType.startsWith("video/")) {
-      await this.zapiService.sendVideo({
+      await this.whatsappService.sendVideo({
         phone: conversation.phone,
         video: params.dataUrl,
         caption: params.caption,
-        config,
       });
     } else {
-      await this.zapiService.sendDocument({
+      await this.whatsappService.sendDocument({
         phone: conversation.phone,
         document: params.dataUrl,
         fileName: params.fileName,
         caption: params.caption,
-        config,
       });
     }
 
@@ -379,7 +372,7 @@ export class ConversationService {
             message: "Falha ao enviar lembrete automático da Cris.",
             method: "POST",
             endpoint: "cron/conversations-follow-up",
-            integration: "zapi",
+            integration: "meta",
             metadata: {
               conversationId: conversation.id,
               phone: conversation.phone,
@@ -416,30 +409,9 @@ export class ConversationService {
   private async sendFollowUpMessage(params: {
     phone: string;
     message: string;
-    agent?: {
-      zapiBaseUrl?: string | null;
-      zapiInstanceId?: string | null;
-      zapiToken?: string | null;
-      zapiClientToken?: string | null;
-      zapiWhatsappNumber?: string | null;
-    } | null;
+    agent?: unknown;
   }) {
-    const config = agentConfig(params.agent);
-
-    try {
-      await this.zapiService.sendText({
-        phone: params.phone,
-        message: params.message,
-        config,
-      });
-      return;
-    } catch (error) {
-      if (!shouldRetryWithDefaultConfig(error, config)) {
-        throw error;
-      }
-    }
-
-    await this.zapiService.sendText({
+    await this.whatsappService.sendText({
       phone: params.phone,
       message: params.message,
     });
@@ -507,19 +479,6 @@ function clearConversationFollowUp(memory: ConversationMemory) {
   delete next.followUpLastSentAt;
   delete next.followUpClosedAt;
   return next;
-}
-
-function shouldRetryWithDefaultConfig(error: unknown, config?: ReturnType<typeof agentConfig>) {
-  if (!config || !config.instanceId || !config.token) {
-    return false;
-  }
-
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const message = error.message.toLowerCase();
-  return message.includes("instance not found") || message.includes("status=404");
 }
 
 function getNextFollowUpStep(memory: ConversationMemory, now: Date) {
@@ -652,23 +611,5 @@ function normalizeTag(tag: unknown): ConversationTag | null {
   return {
     label,
     color,
-  };
-}
-
-function agentConfig(agent?: {
-  zapiBaseUrl?: string | null;
-  zapiInstanceId?: string | null;
-  zapiToken?: string | null;
-  zapiClientToken?: string | null;
-  zapiWhatsappNumber?: string | null;
-} | null) {
-  if (!agent) return undefined;
-
-  return {
-    baseUrl: agent.zapiBaseUrl ?? undefined,
-    instanceId: agent.zapiInstanceId ?? undefined,
-    token: agent.zapiToken ?? undefined,
-    clientToken: agent.zapiClientToken ?? undefined,
-    whatsappNumber: agent.zapiWhatsappNumber ?? undefined,
   };
 }

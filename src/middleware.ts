@@ -7,7 +7,7 @@ const publicRoutes = [
   "/brand",
   "/api/health",
   "/api/auth/login",
-  "/api/webhooks/zapi",
+  "/api/webhooks/meta",
   "/api/cron/conversations-follow-up",
 ];
 

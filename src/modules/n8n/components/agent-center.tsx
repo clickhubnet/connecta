@@ -17,8 +17,7 @@ type AgentItem = {
   id: string; name: string; gender: "MALE" | "FEMALE"; personality: string; rules: Record<string, unknown>;
   flow: { steps?: FlowStep[] | string[] }; active: boolean; minTypingSeconds: number; maxTypingSeconds: number;
   enableReadReceipt: boolean; enableTyping: boolean; enableReplyDelay: boolean; openAiModel: string | null;
-  zapiBaseUrl: string | null; zapiInstanceId: string | null; zapiToken: string | null; zapiClientToken: string | null;
-  zapiWhatsappNumber: string | null; plans: PlanItem[];
+  plans: PlanItem[];
 };
 type Tab = "agents" | "plans" | "openai" | "flow";
 
@@ -132,7 +131,7 @@ function AgentCard({ agent, onEdit, onDelete }: { agent: AgentItem; onEdit: () =
       <div className="flex items-start justify-between gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-md bg-primary/15"><Bot className="h-6 w-6 text-primary" /></div>
         <span className={`rounded-full px-2 py-1 text-xs ${agent.active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>{agent.active ? "Ativo" : "Inativo"}</span></div>
       <h3 className="mt-4 font-semibold">{agent.name}</h3><p className="mt-1 line-clamp-2 min-h-10 text-sm text-muted-foreground">{agent.personality}</p>
-      <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground"><span>{agent.gender === "FEMALE" ? "Feminino" : "Masculino"}</span><span>•</span><span>{agent.plans.length} planos</span><span>•</span><span>{agent.zapiInstanceId ? "Z-API configurada" : "Z-API pendente"}</span></div>
+      <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground"><span>{agent.gender === "FEMALE" ? "Feminino" : "Masculino"}</span><span>•</span><span>{agent.plans.length} planos</span><span>•</span><span>WhatsApp Meta global</span></div>
     </button>
     <div className="flex justify-end gap-2 border-t px-4 py-3"><Button size="sm" variant="ghost" onClick={onEdit}><Pencil className="h-4 w-4" />Editar</Button><Button size="icon" variant="ghost" aria-label="Excluir agente" onClick={onDelete}><Trash2 className="h-4 w-4 text-destructive" /></Button></div>
   </CardContent></Card>;
@@ -184,12 +183,11 @@ function AgentModal({ agent, plans, saving, onClose, onSave }: { agent: AgentIte
     name: f.get("name"), gender: f.get("gender"), personality: f.get("personality"), rules: textRules(rules), active: f.get("active") === "on",
     minTypingSeconds: Number(f.get("minTypingSeconds") || 2), maxTypingSeconds: Number(f.get("maxTypingSeconds") || 4), openAiModel: f.get("openAiModel"),
     enableReadReceipt: f.get("enableReadReceipt") === "on", enableTyping: f.get("enableTyping") === "on", enableReplyDelay: f.get("enableReplyDelay") === "on",
-    zapiBaseUrl: f.get("zapiBaseUrl"), zapiInstanceId: f.get("zapiInstanceId"), zapiToken: f.get("zapiToken"), zapiClientToken: f.get("zapiClientToken"), zapiWhatsappNumber: f.get("zapiWhatsappNumber"),
     planIds: f.getAll("planIds"), flow: agent?.flow?.steps ? agent.flow : { steps: defaultSteps },
   }); }
   return <Modal title={agent ? `Editar ${agent.name}` : "Cadastrar agente"} onClose={onClose}><form className="space-y-5" onSubmit={submit}>
     <Section title="Identidade e inteligência"><div className="grid gap-3 sm:grid-cols-2"><Input name="name" defaultValue={agent?.name ?? ""} placeholder="Nome do chatbot" required /><select name="gender" defaultValue={agent?.gender ?? "MALE"} className="h-10 rounded-md border bg-background px-3 text-sm"><option value="MALE">Masculino</option><option value="FEMALE">Feminino</option></select></div><Textarea className="min-h-28" name="personality" defaultValue={agent?.personality ?? ""} placeholder="Personalidade do chatbot" required /><Textarea className="min-h-28" value={rules} onChange={(e) => setRules(e.target.value)} placeholder="Uma regra por linha" /><Input name="openAiModel" defaultValue={agent?.openAiModel ?? "gpt-4o-mini"} placeholder="Modelo OpenAI" /></Section>
-    <Section title="Credenciais Z-API"><div className="grid gap-3 sm:grid-cols-2"><Input name="zapiInstanceId" defaultValue={agent?.zapiInstanceId ?? ""} placeholder="Instance ID" /><Input name="zapiToken" defaultValue={agent?.zapiToken ?? ""} type="password" placeholder={agent?.zapiToken ? "Token configurado" : "Token da instância"} /><Input name="zapiClientToken" defaultValue={agent?.zapiClientToken ?? ""} type="password" placeholder={agent?.zapiClientToken ? "Client Token configurado" : "Client Token da conta Z-API"} /><Input name="zapiWhatsappNumber" defaultValue={agent?.zapiWhatsappNumber ?? ""} placeholder="Número do WhatsApp" /><Input className="sm:col-span-2" name="zapiBaseUrl" defaultValue={agent?.zapiBaseUrl ?? "https://api.z-api.io"} placeholder="URL base Z-API" /></div></Section>
+    <Section title="WhatsApp Meta"><div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">As credenciais do WhatsApp Cloud API são globais e devem ser configuradas no servidor com as variáveis META_*.</div></Section>
     <Section title="Planos atendidos"><div className="grid gap-2 sm:grid-cols-2">{plans.map((plan) => <label key={plan.id} className="flex items-center gap-2 rounded-md border p-3 text-sm"><input name="planIds" value={plan.id} type="checkbox" defaultChecked={agent?.plans.some((item) => item.id === plan.id)} />{plan.name} · {money.format(Number(plan.price))}</label>)}</div></Section>
     <Section title="Comportamento"><div className="grid gap-3 sm:grid-cols-2"><Input name="minTypingSeconds" type="number" min="0" defaultValue={agent?.minTypingSeconds ?? 2} placeholder="Tempo mínimo" /><Input name="maxTypingSeconds" type="number" min="1" defaultValue={agent?.maxTypingSeconds ?? 4} placeholder="Tempo máximo" /></div><div className="grid gap-2 sm:grid-cols-2"><CheckBox name="active" label="Agente ativo" checked={agent?.active ?? true} /><CheckBox name="enableReadReceipt" label="Confirmar leitura" checked={agent?.enableReadReceipt ?? true} /><CheckBox name="enableTyping" label="Simular digitação" checked={agent?.enableTyping ?? true} /><CheckBox name="enableReplyDelay" label="Atraso humanizado" checked={agent?.enableReplyDelay ?? true} /></div></Section>
     <Button className="w-full" disabled={saving}><Save className="h-4 w-4" />{saving ? "Salvando..." : "Salvar agente"}</Button>
