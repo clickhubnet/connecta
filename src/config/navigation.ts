@@ -1,4 +1,4 @@
-import { ChartPie, Home, Bot, CalendarCheck, MessageCircleMore, ReceiptText, MapPinned, Megaphone, Settings, Users, Workflow, BrainCircuit, CircleDollarSign, History, Smartphone } from "lucide-react";
+import { ChartPie, Home, Bot, CalendarCheck, MessageCircleMore, ReceiptText, MapPinned, Megaphone, Settings, Users, Workflow, BrainCircuit, CircleDollarSign, History, Smartphone, ListChecks } from "lucide-react";
 import { permissions } from "@/constants/permissions";
 
 export const navigationItems = [
@@ -8,6 +8,7 @@ export const navigationItems = [
   { title: "Leads", group: "", href: "/leads", icon: Users, permission: permissions.leadsView },
   { title: "Conversas", group: "Envio em Massa", href: "/envio-em-massa/conversas", icon: MessageCircleMore, permission: permissions.agentsEdit },
   { title: "Disparos", group: "Envio em Massa", href: "/envio-em-massa", icon: Megaphone, permission: permissions.agentsEdit },
+  { title: "Verificar WhatsApp", group: "Envio em Massa", href: "/envio-em-massa/verificar-whatsapp", icon: ListChecks, permission: permissions.agentsEdit },
   { title: "Histórico", group: "Envio em Massa", href: "/envio-em-massa/historico", icon: History, permission: permissions.agentsEdit },
   { title: "Contas", group: "Envio em Massa", href: "/envio-em-massa/configuracoes", icon: Smartphone, permission: permissions.agentsEdit },
   { title: "Despesas", group: "Gestão", href: "/despesas", icon: ReceiptText, permission: permissions.expensesView },
