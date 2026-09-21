@@ -140,15 +140,22 @@ export function DispatchConversations() {
     if (isRecording) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
+      const mimeType = preferredWhatsappAudioMimeType();
+      if (!mimeType) {
+        stream.getTracks().forEach((track) => track.stop());
+        setNotice("Seu navegador grava áudio em um formato que a Meta não aceita. Use Firefox atualizado ou anexe um áudio .ogg, .mp3, .m4a, .aac ou .amr.");
+        return;
+      }
+      const recorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
       recorder.addEventListener("dataavailable", (event) => {
         if (event.data.size > 0) audioChunksRef.current.push(event.data);
       });
       recorder.addEventListener("stop", () => {
-        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" });
-        const file = new File([blob], `audio-${Date.now()}.webm`, { type: recorder.mimeType || "audio/webm" });
+        const recordedMimeType = normalizeMimeType(recorder.mimeType || mimeType);
+        const blob = new Blob(audioChunksRef.current, { type: recordedMimeType });
+        const file = new File([blob], `audio-${Date.now()}.${audioExtensionFromMime(recordedMimeType)}`, { type: recordedMimeType });
         setSelectedFile(file);
         if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
         setAudioPreviewUrl(URL.createObjectURL(blob));
@@ -276,4 +283,32 @@ function hasOpenCustomerServiceWindow(thread: Thread | null) {
   if (!thread) return false;
   const windowStart = Date.now() - 24 * 60 * 60 * 1000;
   return thread.messages.some((message) => message.direction === "inbound" && new Date(message.createdAt).getTime() >= windowStart);
+}
+
+const WHATSAPP_AUDIO_MIME_TYPES = [
+  "audio/ogg;codecs=opus",
+  "audio/ogg",
+  "audio/mp4",
+  "audio/mpeg",
+  "audio/aac",
+  "audio/amr",
+] as const;
+
+function preferredWhatsappAudioMimeType() {
+  if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") return "";
+  return WHATSAPP_AUDIO_MIME_TYPES.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) ?? "";
+}
+
+function normalizeMimeType(mimeType: string) {
+  return mimeType.split(";")[0]?.trim() || "application/octet-stream";
+}
+
+function audioExtensionFromMime(mimeType: string) {
+  const normalized = normalizeMimeType(mimeType);
+  if (normalized === "audio/ogg") return "ogg";
+  if (normalized === "audio/mp4") return "m4a";
+  if (normalized === "audio/mpeg") return "mp3";
+  if (normalized === "audio/aac") return "aac";
+  if (normalized === "audio/amr") return "amr";
+  return "audio";
 }

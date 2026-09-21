@@ -130,9 +130,12 @@ export async function POST(request: Request) {
       if (!await hasOpenCustomerServiceWindow(conversation.id)) return NextResponse.json(errorResponse(FREE_FORM_WINDOW_ERROR), { status: 409 });
 
       const buffer = Buffer.from(await file.arrayBuffer());
-      const mimeType = file.type || "application/octet-stream";
-      const dataUrl = `data:${mimeType};base64,${buffer.toString("base64")}`;
+      const mimeType = normalizeMimeType(file.type || "application/octet-stream");
       const mediaKind = mediaKindFromMime(mimeType);
+      if (mediaKind === "audio" && !isSupportedWhatsappAudioMime(mimeType)) {
+        return NextResponse.json(errorResponse("Formato de áudio não aceito pela Meta. Use .ogg com codec Opus, .mp3, .m4a, .aac ou .amr."), { status: 415 });
+      }
+      const dataUrl = `data:${mimeType};base64,${buffer.toString("base64")}`;
       const providerId = await sendMediaToWhatsapp({
         phone: conversation.phone,
         kind: mediaKind,
@@ -206,6 +209,14 @@ async function hasOpenCustomerServiceWindow(conversationId: string) {
     select: { id: true },
   });
   return Boolean(inbound);
+}
+
+function normalizeMimeType(mimeType: string) {
+  return mimeType.split(";")[0]?.trim().toLowerCase() || "application/octet-stream";
+}
+
+function isSupportedWhatsappAudioMime(mimeType: string) {
+  return ["audio/aac", "audio/amr", "audio/mpeg", "audio/mp4", "audio/ogg"].includes(normalizeMimeType(mimeType));
 }
 
 function mediaKindFromMime(mimeType: string): "image" | "video" | "audio" | "document" {

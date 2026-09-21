@@ -93,7 +93,13 @@ export class MetaService {
 
     if (!response.ok || payload?.error) {
       const code = payload?.error?.code;
-      throw new MetaApiError(`Meta${typeof code === "number" ? ` (${code})` : ` (HTTP ${response.status})`}: A solicitação não foi concluída. Verifique a conta e as permissões no WhatsApp Manager.`, sending && response.status >= 500);
+      const hints: Record<number, string> = {
+        100: "Parâmetro inválido. Em mídia, confira formato e tamanho do arquivo. Áudio precisa ser .ogg Opus, .mp3, .m4a, .aac ou .amr.",
+        190: "Token inválido ou expirado.",
+        200: "Verifique as permissões e os ativos vinculados ao token.",
+        131053: "Falha no upload da mídia. Confira se o formato é compatível com o WhatsApp Cloud API.",
+      };
+      throw new MetaApiError(`Meta${typeof code === "number" ? ` (${code})` : ` (HTTP ${response.status})`}: ${hints[code ?? 0] ?? "A solicitação não foi concluída. Verifique a conta e as permissões no WhatsApp Manager."}`, sending && response.status >= 500);
     }
 
     return payload as T;
