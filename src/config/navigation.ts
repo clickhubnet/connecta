@@ -9,7 +9,7 @@ export const navigationItems = [
   { title: "Conversas", group: "Envio em Massa", href: "/envio-em-massa/conversas", icon: MessageCircleMore, permission: permissions.agentsEdit },
   { title: "Disparos", group: "Envio em Massa", href: "/envio-em-massa", icon: Megaphone, permission: permissions.agentsEdit },
   { title: "Histórico", group: "Envio em Massa", href: "/envio-em-massa/historico", icon: History, permission: permissions.agentsEdit },
-  { title: "Contas", group: "Envio em Massa", href: "/envio-em-massa/configuracoes", icon: Smartphone, permission: permissions.agentsEdit },
+  { title: "Contas", group: "Gestão", href: "/envio-em-massa/configuracoes", icon: Smartphone, permission: permissions.agentsEdit },
   { title: "Despesas", group: "Gestão", href: "/despesas", icon: ReceiptText, permission: permissions.expensesView },
   { title: "Compromissos", group: "Gestão", href: "/compromissos", icon: CalendarCheck, permission: permissions.appointmentsView },
   { title: "Agentes", group: "Funil de Vendas", href: "/n8n/agents", icon: Bot, permission: permissions.agentsEdit },

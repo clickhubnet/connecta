@@ -17,6 +17,9 @@ type WhatsappAccount = {
   phoneNumberId: string;
   wabaId: string;
   verifyToken: string;
+  purpose: "DISPATCH" | "CHATBOT";
+  source?: string;
+  hasAccessToken?: boolean;
   apiVersion: string;
   accessToken: string;
   createdAt: string;
@@ -30,7 +33,8 @@ const emptyForm: AccountForm = {
   phoneNumberId: "",
   wabaId: "",
   verifyToken: "",
-  apiVersion: "v21.0",
+  apiVersion: "v26.0",
+  purpose: "DISPATCH",
   accessToken: "",
 };
 
@@ -46,7 +50,8 @@ export function WhatsappAccountsPanel() {
   const [showToken, setShowToken] = useState(false);
   const [copied, setCopied] = useState(false);
   const [ready, setReady] = useState(false);
-  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const [notice, setNotice] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const key = useMemo(() => storageKey(user?.id), [user?.id]);
   const webhookUrl = useMemo(() => {
@@ -54,64 +59,92 @@ export function WhatsappAccountsPanel() {
     return `${window.location.origin}/api/webhooks/meta`;
   }, []);
 
+  async function loadAccounts() {
+    const response = await fetch("/api/whatsapp-accounts", { cache: "no-store" });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.message || "Não foi possível carregar as contas.");
+    setAccounts(result.data);
+  }
+
   useEffect(() => {
-    setReady(false);
-    try {
-      const stored = window.localStorage.getItem(key);
-      if (!stored) {
-        setAccounts([]);
-        return;
+    if (!user?.id) return;
+    let cancelled = false;
+    async function initialize() {
+      try {
+        // Migrate this user's old browser-only registrations without deleting failed imports.
+        const raw = window.localStorage.getItem(key);
+        if (raw) {
+          const parsed: unknown = JSON.parse(raw);
+          const legacy = Array.isArray(parsed) ? parsed.filter(isAccount) : [];
+          let complete = true;
+          for (const account of legacy) {
+            const response = await fetch("/api/whatsapp-accounts", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ...account, id: undefined, importLegacy: true, purpose: account.purpose || "DISPATCH" }),
+            });
+            if (!response.ok) complete = false;
+          }
+          if (complete) window.localStorage.removeItem(key);
+          else if (!cancelled) setNotice("Alguns cadastros antigos não foram importados. Eles continuam preservados neste navegador.");
+        }
+        if (!cancelled) await loadAccounts();
+      } catch {
+        if (!cancelled) setNotice("Não foi possível carregar as contas. Recarregue a página para tentar novamente.");
+      } finally {
+        if (!cancelled) setReady(true);
       }
-
-      const parsed = JSON.parse(stored) as WhatsappAccount[];
-      setAccounts(Array.isArray(parsed) ? parsed.filter(isAccount) : []);
-    } catch {
-      window.localStorage.removeItem(key);
-      setAccounts([]);
-    } finally {
-      setLoadedKey(key);
-      setReady(true);
     }
-  }, [key]);
+    void initialize();
+    return () => { cancelled = true; };
+  }, [key, user?.id]);
 
-  useEffect(() => {
-    if (!ready || loadedKey !== key) return;
-    window.localStorage.setItem(key, JSON.stringify(accounts));
-  }, [accounts, key, loadedKey, ready]);
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const normalized = normalizeForm(form);
-    if (!normalized) return;
+    if (saving) return;
+    setSaving(true);
+    setNotice("");
+    try {
+      const response = await fetch("/api/whatsapp-accounts", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, id: editingId || undefined }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message);
+      await loadAccounts();
+      setForm(emptyForm);
+      setEditingId(null);
+      setShowToken(false);
+      setNotice("Conta salva.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Não foi possível salvar a conta.");
+    } finally { setSaving(false); }
+  }
 
-    if (editingId) {
-      setAccounts((current) => current.map((account) => (account.id === editingId ? { ...account, ...normalized } : account)));
-    } else {
-      setAccounts((current) => [
-        {
-          ...normalized,
-          id: crypto.randomUUID(),
-          createdAt: new Date().toISOString(),
-        },
-        ...current,
-      ]);
-    }
-
-    setForm(emptyForm);
-    setEditingId(null);
-    setShowToken(false);
+  async function deleteAccount(account: WhatsappAccount) {
+    if (saving || !window.confirm("Excluir este cadastro de conta?")) return;
+    setSaving(true);
+    try {
+      const response = await fetch("/api/whatsapp-accounts?id=" + encodeURIComponent(account.id), { method: "DELETE" });
+      if (!response.ok) throw new Error("Não foi possível excluir a conta.");
+      if (editingId === account.id) { setEditingId(null); setForm(emptyForm); }
+      await loadAccounts();
+      setNotice("Cadastro excluído.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Falha ao excluir."); }
+    finally { setSaving(false); }
   }
 
   function editAccount(account: WhatsappAccount) {
+    if (account.source !== "database") return;
     setEditingId(account.id);
     setForm({
       name: account.name,
       phone: account.phone,
       phoneNumberId: account.phoneNumberId,
       wabaId: account.wabaId,
-      verifyToken: account.verifyToken,
+      verifyToken: "",
+      purpose: account.purpose,
       apiVersion: account.apiVersion,
-      accessToken: account.accessToken,
+      accessToken: "",
     });
   }
 
@@ -131,12 +164,14 @@ export function WhatsappAccountsPanel() {
             </span>
             <div>
               <h2 className="text-base font-bold">Contas configuradas</h2>
-              <p className="mt-1 text-xs text-muted-foreground">{accounts.length} conta{accounts.length === 1 ? "" : "s"} pronta{accounts.length === 1 ? "" : "s"} para conexão com a Meta.</p>
+              <p className="mt-1 text-xs text-muted-foreground">{accounts.length} conta{accounts.length === 1 ? "" : "s"} cadastrada{accounts.length === 1 ? "" : "s"} para disparos e chatbot.</p>
             </div>
           </div>
         </div>
 
         <div className="accounts-list space-y-3 p-4 sm:p-5">
+          {notice && <p role="status" className="rounded-xl border p-3 text-sm">{notice}</p>}
+          {!ready && <p className="text-sm text-muted-foreground">Carregando contas…</p>}
           {accounts.length ? (
             accounts.map((account) => (
               <article key={account.id} className={cn("rounded-xl border bg-background/80 p-3.5 transition-colors hover:border-primary/35", editingId === account.id && "border-primary/50 bg-primary/5")}>
@@ -146,34 +181,37 @@ export function WhatsappAccountsPanel() {
                       <h3 className="truncate text-sm font-bold">{account.name}</h3>
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-[11px] font-bold text-emerald-700">
                         <CheckCircle2 className="h-3.5 w-3.5" />
-                        Ativa
+                        {account.source === "environment" ? "Em uso · servidor" : account.source === "agent" ? "Agente" : "Cadastrada"}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm font-medium text-muted-foreground">{account.phone}</p>
+                    <p className="mt-1 text-sm font-medium text-muted-foreground">{account.phone || "Número identificado pelo Phone Number ID"}</p>
+                    <p className="mt-1 text-xs font-semibold text-primary">{account.purpose === "CHATBOT" ? "Chatbot" : "Disparos em massa"}</p>
                     <dl className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                      <AccountDetail label="Phone Number ID" value={account.phoneNumberId} />
-                      <AccountDetail label="WABA ID" value={account.wabaId} />
+                      <AccountDetail label={account.source === "agent" ? "Instância" : "Phone Number ID"} value={account.phoneNumberId} />
+                      <AccountDetail label="WABA ID" value={account.wabaId || "—"} />
                       <AccountDetail label="API" value={account.apiVersion} />
-                      <AccountDetail label="Token" value={maskToken(account.accessToken)} />
+                      <AccountDetail label="Token" value={account.hasAccessToken ? "Configurado no servidor" : "Não configurado"} />
                     </dl>
+                    {account.source === "environment" && <p className="mt-3 text-xs text-muted-foreground">Conta atual dos disparos. Credenciais configuradas no servidor.</p>}
+                    {account.source === "agent" && <p className="mt-3 text-xs text-muted-foreground">Número vinculado ao agente. Gerencie a conexão na aba Agentes.</p>}
                   </button>
-                  <Button type="button" variant="ghost" size="icon" aria-label="Excluir conta" onClick={() => setAccounts((current) => current.filter((item) => item.id !== account.id))} className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+                  <Button disabled={saving || account.source !== "database"} type="button" variant="ghost" size="icon" aria-label="Excluir conta" onClick={() => void deleteAccount(account)} className="text-destructive hover:bg-destructive/10 hover:text-destructive">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </article>
             ))
-          ) : (
+          ) : ready ? (
             <div className="grid h-full min-h-64 place-items-center rounded-xl border border-dashed bg-background/50 p-6 text-center">
               <div>
                 <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary">
                   <Smartphone className="h-5 w-5" />
                 </span>
                 <h3 className="mt-4 text-sm font-bold">Nenhuma conta cadastrada</h3>
-                <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">Cadastre a conta WhatsApp Cloud API para revisar os dados que serão usados nos disparos.</p>
+                <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">Centralize os números de WhatsApp utilizados nos disparos e no chatbot.</p>
               </div>
             </div>
-          )}
+          ) : null}
         </div>
       </Card>
 
@@ -190,21 +228,28 @@ export function WhatsappAccountsPanel() {
           </div>
 
           <form className="accounts-form space-y-3 p-4 sm:p-5" onSubmit={handleSubmit}>
+            <label className="block space-y-2">
+              <span className="text-xs font-semibold">Finalidade</span>
+              <select value={form.purpose} onChange={event => setForm(current => ({ ...current, purpose: event.target.value as AccountForm["purpose"] }))} className="h-11 w-full rounded-xl border bg-background px-3 text-sm">
+                <option value="DISPATCH">Disparos em massa</option>
+                <option value="CHATBOT">Chatbot</option>
+              </select>
+            </label>
             <InputField label="Nome da conta" value={form.name} onChange={(value) => setForm((current) => ({ ...current, name: value }))} placeholder="Envios Connecta" />
             <InputField label="Telefone" value={form.phone} onChange={(value) => setForm((current) => ({ ...current, phone: value }))} placeholder="5511999999999" inputMode="tel" />
             <InputField label="Phone Number ID" value={form.phoneNumberId} onChange={(value) => setForm((current) => ({ ...current, phoneNumberId: value }))} placeholder="11921061066" />
             <InputField label="WABA ID" value={form.wabaId} onChange={(value) => setForm((current) => ({ ...current, wabaId: value }))} placeholder="2217118402423756" />
-            <InputField label="Verify Token" value={form.verifyToken} onChange={(value) => setForm((current) => ({ ...current, verifyToken: value }))} placeholder="Token de verificação" />
+            <InputField required={!editingId} label="Verify Token" value={form.verifyToken} onChange={(value) => setForm((current) => ({ ...current, verifyToken: value }))} placeholder="Token de verificação" />
             <InputField label="Versão da API" value={form.apiVersion} onChange={(value) => setForm((current) => ({ ...current, apiVersion: value }))} placeholder="v21.0" />
 
             <label className="block space-y-2">
               <span className="text-xs font-semibold">Access Token</span>
               <div className="relative">
                 <Textarea
-                  required
+                  required={!editingId}
                   value={form.accessToken}
                   onChange={(event) => setForm((current) => ({ ...current, accessToken: event.target.value }))}
-                  placeholder="Cole o access token da Meta"
+                  placeholder={editingId ? "Deixe vazio para manter o token atual" : "Cole o access token da Meta"}
                   className="accounts-token min-h-20 resize-none rounded-xl bg-muted/20 pr-12"
                   rows={4}
                   spellCheck={false}
@@ -217,10 +262,11 @@ export function WhatsappAccountsPanel() {
               </div>
             </label>
 
-            <Button type="submit" className="h-11 w-full rounded-xl">
+            <Button disabled={saving || !ready} type="submit" className="h-11 w-full rounded-xl">
               <Save className="h-4 w-4" />
-              {editingId ? "Salvar alterações" : "Salvar conta"}
+              {saving ? "Salvando…" : editingId ? "Salvar alterações" : "Salvar conta"}
             </Button>
+            {editingId && <Button type="button" variant="ghost" className="w-full" onClick={() => { setEditingId(null); setForm(emptyForm); }}>Cancelar edição</Button>}
           </form>
         </Card>
 
@@ -247,7 +293,9 @@ function InputField({
   onChange,
   placeholder,
   inputMode,
+  required = true,
 }: {
+  required?: boolean;
   label: string;
   value: string;
   onChange: (value: string) => void;
@@ -257,7 +305,7 @@ function InputField({
   return (
     <label className="block space-y-2">
       <span className="text-xs font-semibold">{label}</span>
-      <Input required value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} inputMode={inputMode} className="h-11 rounded-xl bg-muted/20" />
+      <Input required={required} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} inputMode={inputMode} className="h-11 rounded-xl bg-muted/20" />
     </label>
   );
 }
@@ -271,27 +319,8 @@ function AccountDetail({ label, value }: { label: string; value: string }) {
   );
 }
 
-function normalizeForm(form: AccountForm): AccountForm | null {
-  const normalized = {
-    name: form.name.trim(),
-    phone: form.phone.replace(/\D/g, ""),
-    phoneNumberId: form.phoneNumberId.trim(),
-    wabaId: form.wabaId.trim(),
-    verifyToken: form.verifyToken.trim(),
-    apiVersion: form.apiVersion.trim() || "v21.0",
-    accessToken: form.accessToken.trim(),
-  };
-
-  return Object.values(normalized).every(Boolean) ? normalized : null;
-}
-
 function isAccount(value: unknown): value is WhatsappAccount {
   if (!value || typeof value !== "object") return false;
   const candidate = value as WhatsappAccount;
   return Boolean(candidate.id && candidate.name && candidate.phone && candidate.phoneNumberId && candidate.wabaId && candidate.verifyToken && candidate.apiVersion && candidate.accessToken && candidate.createdAt);
-}
-
-function maskToken(token: string) {
-  if (token.length <= 12) return "••••••";
-  return `${token.slice(0, 5)}••••${token.slice(-5)}`;
 }
