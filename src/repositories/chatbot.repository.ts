@@ -456,14 +456,20 @@ export class ChatbotRepository {
 }
 
 function buildConversationAccessWhere(user?: Pick<User, "id" | "role">): Prisma.ChatConversationWhereInput {
+  const withoutDispatchConversations: Prisma.ChatConversationWhereInput = {
+    NOT: { memory: { path: ["source"], equals: "mass-message" } },
+  };
+
   if (user?.role === "EMPLOYEE") {
     return {
       deletedAt: null,
       ownerUserId: user.id,
+      ...withoutDispatchConversations,
     };
   }
 
   return {
     deletedAt: null,
+    ...withoutDispatchConversations,
   };
 }

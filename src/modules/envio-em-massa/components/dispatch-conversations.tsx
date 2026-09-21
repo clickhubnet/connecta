@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ArrowLeft, Filter, MessageCircleMore, Search, Send } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, FileText, Filter, MessageCircleMore, Mic, Paperclip, Search, Send, Square, X } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 import { useApiResource } from "@/hooks/use-api-resource";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
-type Thread = { id: string; phone: string; ownerUserId: string | null; lead: { name: string } | null; owner: { name: string } | null; messages: Array<{ id: string; direction: string; body: string; createdAt: string }> };
+type Message = { id: string; direction: string; body: string; createdAt: string };
+type Thread = { id: string; phone: string; ownerUserId: string | null; lead: { name: string } | null; owner: { name: string } | null; messages: Message[] };
 type InboxData = { conversations: Thread[]; employees: Array<{ id: string; name: string }> };
+type MediaBody = { kind: "media"; mediaKind: "image" | "video" | "audio" | "document"; fileName: string; mimeType: string; dataUrl: string; caption?: string };
 
 const filters = [
   { id: "all", label: "Todas", empty: "Nenhuma conversa de disparo disponível." },
@@ -28,24 +31,109 @@ export function DispatchConversations() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
+  const [message, setMessage] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const inbox = useApiResource<InboxData>(`/api/envio-em-massa/conversas?filter=${filter}&search=${encodeURIComponent(search)}`);
   const detail = useApiResource<InboxData>(`/api/envio-em-massa/conversas?id=${selectedId ?? ""}`, Boolean(selectedId));
   const thread = selectedId && !detail.loading && !detail.error ? detail.data?.conversations.find((item) => item.id === selectedId) : null;
+
   useEffect(() => {
     const timer = window.setInterval(() => { void inbox.refresh(); if (selectedId) void detail.refresh(); }, 15000);
     return () => window.clearInterval(timer);
   }, [inbox.refresh, detail.refresh, selectedId]);
+
   async function assign(ownerUserId: string) {
     if (!selectedId) return;
-    setSaving(true); setNotice("");
+    setSaving(true);
+    setNotice("");
     try {
       const response = await fetch("/api/envio-em-massa/conversas", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ conversationId: selectedId, ownerUserId: ownerUserId || null }) });
       if (!response.ok) throw new Error("Não foi possível atribuir o funcionário.");
       await Promise.all([inbox.refresh(), detail.refresh()]);
       setNotice("Responsável atualizado.");
-    } catch (error) { setNotice(error instanceof Error ? error.message : "Falha ao atribuir."); }
-    finally { setSaving(false); }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Falha ao atribuir.");
+    } finally {
+      setSaving(false);
+    }
   }
+
+  async function sendCurrentMessage() {
+    if (!selectedId || isSending || (!message.trim() && !selectedFile)) return;
+    setIsSending(true);
+    setNotice("");
+    try {
+      const response = selectedFile ? await sendMedia() : await fetch("/api/envio-em-massa/conversas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: selectedId, content: message.trim() }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.message ?? "Não foi possível enviar.");
+      setMessage("");
+      clearSelectedMedia();
+      await Promise.all([inbox.refresh(), detail.refresh()]);
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Não foi possível enviar.");
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  async function sendMedia() {
+    const formData = new FormData();
+    formData.append("conversationId", selectedId!);
+    formData.append("caption", message);
+    if (selectedFile) formData.append("file", selectedFile);
+    return fetch("/api/envio-em-massa/conversas", { method: "POST", body: formData });
+  }
+
+  async function startRecording() {
+    if (isRecording) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+      recorder.addEventListener("dataavailable", (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      });
+      recorder.addEventListener("stop", () => {
+        const blob = new Blob(audioChunksRef.current, { type: recorder.mimeType || "audio/webm" });
+        const file = new File([blob], `audio-${Date.now()}.webm`, { type: recorder.mimeType || "audio/webm" });
+        setSelectedFile(file);
+        if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
+        setAudioPreviewUrl(URL.createObjectURL(blob));
+        stream.getTracks().forEach((track) => track.stop());
+        setIsRecording(false);
+      });
+      recorder.start();
+      setIsRecording(true);
+    } catch {
+      setNotice("Não foi possível acessar o microfone.");
+    }
+  }
+
+  function stopRecording() {
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+  }
+
+  function clearSelectedMedia() {
+    setSelectedFile(null);
+    if (audioPreviewUrl) {
+      URL.revokeObjectURL(audioPreviewUrl);
+      setAudioPreviewUrl(null);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
   const selected = filters.find((item) => item.id === filter)!;
 
   return (
@@ -62,7 +150,7 @@ export function DispatchConversations() {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {inbox.error && <p role="alert" className="p-4 text-sm text-destructive">{inbox.error}</p>}
-            {inbox.loading ? <p className="p-6 text-xs text-muted-foreground">Carregando…</p> : inbox.data?.conversations.map((item) => <button key={item.id} type="button" onClick={() => { setSelectedId(item.id); setNotice(""); }} className={`w-full border-b p-4 text-left hover:bg-muted/40 ${selectedId === item.id ? "bg-primary/5" : ""}`}><p className="text-sm font-semibold">{item.lead?.name ?? item.phone}</p><p className="mt-1 truncate text-xs text-muted-foreground">{item.messages[0]?.body ?? "Sem mensagens"}</p><p className="mt-2 text-[10px] text-primary">{item.owner?.name ?? "Sem responsável"}</p></button>)}
+            {inbox.loading ? <p className="p-6 text-xs text-muted-foreground">Carregando…</p> : inbox.data?.conversations.map((item) => <button key={item.id} type="button" onClick={() => { setSelectedId(item.id); setNotice(""); }} className={`w-full border-b p-4 text-left hover:bg-muted/40 ${selectedId === item.id ? "bg-primary/5" : ""}`}><p className="text-sm font-semibold">{item.lead?.name ?? item.phone}</p><p className="mt-1 truncate text-xs text-muted-foreground">{messagePreview(item.messages[0]?.body) ?? "Sem mensagens"}</p><p className="mt-2 text-[10px] text-primary">{item.owner?.name ?? "Sem responsável"}</p></button>)}
             {!inbox.loading && !inbox.error && !inbox.data?.conversations.length && <div className="p-6 text-center"><MessageCircleMore aria-hidden="true" className="mx-auto mb-3 mt-8 h-8 w-8 text-muted-foreground/50" /><p role="status" className="text-sm font-medium">{search.trim() ? "Nenhuma conversa encontrada." : selected.empty}</p></div>}
           </div>
           <div className="shrink-0 border-t p-4"><Button asChild variant="outline" className="w-full rounded-xl"><Link href="/envio-em-massa"><Send className="h-4 w-4" />Ir para disparos</Link></Button></div>
@@ -72,16 +160,71 @@ export function DispatchConversations() {
             <div className="shrink-0 border-b bg-card p-4">
               <div className="flex flex-wrap items-center gap-3"><Button type="button" variant="ghost" size="icon" className="lg:hidden" aria-label="Voltar às conversas" onClick={() => setSelectedId(null)}><ArrowLeft className="h-4 w-4" /></Button><p className="flex-1 text-sm font-semibold">{thread?.lead?.name ?? thread?.phone ?? "Conversa"}</p>
               {user?.role === "ADMIN" && thread ? <label className="flex items-center gap-2 text-xs">Funcionário<select aria-label="Atribuir funcionário" disabled={saving} value={thread.ownerUserId ?? ""} onChange={(event) => void assign(event.target.value)} className="h-10 max-w-52 rounded-xl border bg-card px-3"><option value="">Sem responsável</option>{detail.data?.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></label> : thread && <span className="text-xs text-muted-foreground">{thread.owner?.name}</span>}</div>
-              {notice && <p role="status" className="mt-2 text-xs">{notice}</p>}
+              {notice && <p role="status" className="mt-2 text-xs text-destructive">{notice}</p>}
             </div>
             <div className="wa-messages min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
               {detail.error && <p role="alert" className="rounded-xl bg-card p-4 text-sm text-destructive">{detail.error}</p>}
-              {detail.loading ? <p className="text-sm text-muted-foreground">Carregando mensagens…</p> : thread && [...thread.messages].reverse().map((message) => <div key={message.id} className={`flex ${message.direction === "inbound" ? "justify-start" : "justify-end"}`}><div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${message.direction === "inbound" ? "bg-card text-foreground" : "bg-[#d9fdd3] text-neutral-900 dark:bg-[#164b42] dark:text-white"}`}><p className="whitespace-pre-wrap break-words">{message.body}</p><p className="mt-1 text-right text-[10px] opacity-60">{new Date(message.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p></div></div>)}
+              {detail.loading ? <p className="text-sm text-muted-foreground">Carregando mensagens…</p> : thread && [...thread.messages].reverse().map((item) => <div key={item.id} className={`flex ${item.direction === "inbound" ? "justify-start" : "justify-end"}`}><MessageBubble message={item} /></div>)}
             </div>
-          </> : <div className="wa-messages flex h-full items-center justify-center p-8 text-center"><div className="max-w-sm"><MessageCircleMore aria-hidden="true" className="mx-auto h-10 w-10 text-primary" /><h2 className="mt-5 text-lg font-semibold">Selecione uma conversa.</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">{user?.role === "ADMIN" ? "Acompanhe os atendimentos e atribua cada conversa a um funcionário." : "Aqui aparecem apenas as conversas atribuídas a você."}</p></div></div>}
-
+            {selectedFile ? (
+              <div className="mx-4 mb-2 rounded-2xl border bg-muted/40 p-3 text-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div><p className="font-medium">{selectedFile.name}</p><p className="text-xs text-muted-foreground">{Math.ceil(selectedFile.size / 1024)} KB</p></div>
+                  <Button type="button" variant="ghost" size="icon" onClick={clearSelectedMedia}><X className="h-4 w-4" /></Button>
+                </div>
+                {audioPreviewUrl ? <audio className="mt-3 w-full" controls src={audioPreviewUrl} /> : null}
+              </div>
+            ) : null}
+            <input ref={fileInputRef} type="file" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt" className="hidden" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file) { setSelectedFile(file); if (!file.type.startsWith("audio/") && audioPreviewUrl) { URL.revokeObjectURL(audioPreviewUrl); setAudioPreviewUrl(null); } } }} />
+            <div className="shrink-0 border-t bg-card px-4 py-3">
+              <div className="flex items-end gap-2">
+                <Button type="button" variant="ghost" size="icon" aria-label="Anexar mídia ou documento" onClick={() => fileInputRef.current?.click()}><Paperclip className="h-4 w-4" /></Button>
+                <Button type="button" variant="ghost" size="icon" aria-label={isRecording ? "Parar gravação" : "Gravar áudio"} onClick={isRecording ? stopRecording : () => void startRecording()}>{isRecording ? <Square className="h-4 w-4 text-destructive" /> : <Mic className="h-4 w-4" />}</Button>
+                <Textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder={selectedFile ? "Legenda opcional..." : "Digite uma mensagem..."} rows={1} className="min-h-11 max-h-28 flex-1 resize-y rounded-2xl bg-muted/40 py-3" />
+                <Button type="button" size="icon" className="h-11 w-11 rounded-full" aria-label="Enviar mensagem" disabled={isSending || (!message.trim() && !selectedFile)} onClick={() => void sendCurrentMessage()}><Send className="h-4 w-4" /></Button>
+              </div>
+            </div>
+          </> : <div className="wa-messages flex h-full items-center justify-center p-8 text-center"><div className="max-w-sm"><MessageCircleMore aria-hidden="true" className="mx-auto h-10 w-10 text-primary" /><h2 className="mt-5 text-lg font-semibold">Selecione uma conversa.</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">{user?.role === "ADMIN" ? "Acompanhe as respostas dos disparos e atribua cada conversa a um funcionário." : "Aqui aparecem apenas as conversas de campanha atribuídas a você."}</p></div></div>}
         </section>
       </div>
     </div>
   );
+}
+
+function MessageBubble({ message }: { message: Message }) {
+  const media = parseMediaBody(message.body);
+  const outbound = message.direction === "outbound";
+  return (
+    <div className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm shadow-sm ${outbound ? "bg-[#d9fdd3] text-neutral-900 dark:bg-[#164b42] dark:text-white" : "bg-card text-foreground"}`}>
+      {media ? <MediaMessage media={media} /> : <p className="whitespace-pre-wrap break-words">{message.body}</p>}
+      <p className="mt-1 text-right text-[10px] opacity-60">{new Date(message.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>
+    </div>
+  );
+}
+
+function MediaMessage({ media }: { media: MediaBody }) {
+  if (media.mediaKind === "image") return <div className="space-y-2"><a href={media.dataUrl} target="_blank" rel="noreferrer"><img src={media.dataUrl} alt={media.caption || media.fileName} className="max-h-72 rounded-xl object-contain" /></a>{media.caption ? <p className="whitespace-pre-wrap break-words">{media.caption}</p> : null}</div>;
+  if (media.mediaKind === "audio") return <div className="min-w-56 space-y-2"><div className="flex items-center gap-2 text-xs font-medium"><Mic className="h-4 w-4" />Áudio</div><audio controls src={media.dataUrl} className="w-full" /></div>;
+  if (media.mediaKind === "video") return <div className="space-y-2"><video controls src={media.dataUrl} className="max-h-72 rounded-xl" />{media.caption ? <p className="whitespace-pre-wrap break-words">{media.caption}</p> : null}</div>;
+  return <a href={media.dataUrl} target="_blank" rel="noreferrer" download={media.fileName} className="flex items-center gap-3 rounded-xl border border-black/10 bg-white/70 p-3 text-neutral-900"><FileText className="h-5 w-5" /><span className="min-w-0"><span className="block truncate font-medium">{media.fileName}</span><span className="text-xs opacity-70">Abrir documento</span></span></a>;
+}
+
+function parseMediaBody(body?: string | null): MediaBody | null {
+  if (!body?.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(body) as Partial<MediaBody>;
+    if (parsed.kind === "media" && parsed.mediaKind && parsed.dataUrl && parsed.fileName && parsed.mimeType) return parsed as MediaBody;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function messagePreview(body?: string | null) {
+  const media = parseMediaBody(body);
+  if (!media) return body ?? null;
+  if (media.mediaKind === "image") return `Imagem${media.caption ? `: ${media.caption}` : ""}`;
+  if (media.mediaKind === "audio") return "Áudio";
+  if (media.mediaKind === "video") return `Vídeo${media.caption ? `: ${media.caption}` : ""}`;
+  return `Documento: ${media.fileName}`;
 }

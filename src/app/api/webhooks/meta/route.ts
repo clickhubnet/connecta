@@ -2,12 +2,15 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { errorResponse, successResponse } from "@/lib/api-response";
 import { writeTechnicalLog } from "@/lib/logger";
+import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { ChatbotEngineService } from "@/modules/chatbot/services/chatbot-engine.service";
+import { ChatbotRepository } from "@/repositories/chatbot.repository";
 import { MetaWhatsappService } from "@/services/meta/meta-whatsapp.service";
 import { OpenAiService, type ExtractedCustomerData } from "@/services/openai/openai.service";
 
 const chatbotEngineService = new ChatbotEngineService();
+const chatbotRepository = new ChatbotRepository();
 const metaWhatsappService = new MetaWhatsappService();
 const openAiService = new OpenAiService();
 
@@ -91,6 +94,30 @@ export async function POST(request: Request) {
       const incoming = await extractIncomingMessage(event.message);
       if (!event.message.from || !incoming.message) {
         results.push({ ignored: true, reason: "invalid-message" });
+        continue;
+      }
+
+      const dispatchConversation = await findDispatchConversation(event.message.from);
+      if (dispatchConversation) {
+        const dispatchIncoming = await extractDispatchIncomingMessage(event.message, incoming.message);
+        if (event.message.id) {
+          const claimed = await chatbotRepository.claimInboundMessage({
+            conversationId: dispatchConversation.id,
+            body: dispatchIncoming.body,
+            providerId: event.message.id,
+            rawPayload: rawPayload as Prisma.InputJsonValue,
+          });
+          if (claimed) await metaWhatsappService.markAsRead(event.message.id);
+          results.push({ state: "DISPATCH_INBOX", replied: false, duplicated: !claimed });
+        } else {
+          await chatbotRepository.saveMessage({
+            conversationId: dispatchConversation.id,
+            direction: "inbound",
+            body: dispatchIncoming.body,
+            rawPayload: rawPayload as Prisma.InputJsonValue,
+          });
+          results.push({ state: "DISPATCH_INBOX", replied: false });
+        }
         continue;
       }
 
@@ -199,4 +226,68 @@ async function extractIncomingMessage(message: MetaMessage): Promise<{ message: 
   }
 
   return { message: "" };
+}
+
+async function findDispatchConversation(phone: string) {
+  const normalizedPhone = phone.replace(/\D/g, "");
+  if (!normalizedPhone) return null;
+  return prisma.chatConversation.findFirst({
+    where: {
+      phone: normalizedPhone,
+      deletedAt: null,
+      memory: { path: ["source"], equals: "mass-message" },
+    },
+    select: { id: true },
+    orderBy: { updatedAt: "desc" },
+  });
+}
+
+async function extractDispatchIncomingMessage(message: MetaMessage, fallbackText: string) {
+  const audioId = message.audio?.id;
+  if (audioId) {
+    return mediaBodyFromMeta({
+      mediaId: audioId,
+      mediaKind: "audio",
+      mimeType: message.audio?.mime_type,
+      fileName: `audio-${message.id ?? Date.now()}.ogg`,
+      caption: "",
+    });
+  }
+
+  const mediaId = message.image?.id ?? message.document?.id ?? message.video?.id;
+  if (!mediaId) return { body: fallbackText };
+
+  const mediaKind = message.image?.id ? "image" : message.video?.id ? "video" : "document";
+  return mediaBodyFromMeta({
+    mediaId,
+    mediaKind,
+    mimeType: message.image?.mime_type ?? message.document?.mime_type ?? message.video?.mime_type,
+    fileName: message.document?.filename ?? `${mediaKind}-${message.id ?? Date.now()}`,
+    caption: message.image?.caption ?? message.document?.caption ?? message.video?.caption ?? "",
+  });
+}
+
+async function mediaBodyFromMeta(input: {
+  mediaId: string;
+  mediaKind: "image" | "video" | "audio" | "document";
+  mimeType?: string;
+  fileName: string;
+  caption?: string;
+}) {
+  try {
+    const media = await metaWhatsappService.downloadMediaAsDataUrl(input.mediaId);
+    return {
+      body: JSON.stringify({
+        kind: "media",
+        mediaKind: input.mediaKind,
+        fileName: input.fileName,
+        mimeType: media.mimeType || input.mimeType || "application/octet-stream",
+        dataUrl: media.dataUrl,
+        caption: input.caption?.trim() ?? "",
+      }),
+    };
+  } catch {
+    const label = input.mediaKind === "image" ? "Imagem" : input.mediaKind === "video" ? "Vídeo" : input.mediaKind === "audio" ? "Áudio" : "Documento";
+    return { body: input.caption?.trim() || `[${label} recebido, mas não pôde ser baixado]` };
+  }
 }

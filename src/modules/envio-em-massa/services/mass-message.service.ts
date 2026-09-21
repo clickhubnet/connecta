@@ -1,4 +1,6 @@
 import { ZodError } from "zod";
+import { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 import { massMessageSchema, parseContacts, type MassMessageInput } from "@/modules/envio-em-massa/schemas/mass-message.schema";
 import { MetaApiError, MetaService } from "@/services/meta/meta.service";
 import { buildTemplate, unsupportedTemplateReason, type MetaTemplate } from "@/services/meta/template";
@@ -40,10 +42,11 @@ export class MassMessageService {
     return templates.map((template) => toTemplateOption(template));
   }
 
-  async send(rawInput: unknown): Promise<MassMessageResult> {
+  async send(rawInput: unknown, user?: { id: string; role: string }): Promise<MassMessageResult> {
     const input = parseInput(rawInput);
     const contacts = parseValidation(() => parseContacts(input.contactsText));
     let templatePayload: Record<string, unknown> | undefined;
+    let templateName = input.templateName;
     if (input.mode === "template") {
     const templates = await this.metaService.listTemplates();
     const template = templates.find((item) => input.templateId ? item.id === input.templateId : item.name === input.templateName && item.language === input.language);
@@ -51,6 +54,7 @@ export class MassMessageService {
     if (!template) {
       throw new MassMessageValidationError("Template aprovado não encontrado nesta conta da Meta.");
     }
+    templateName = template.name;
 
     const headerFormat = template.components.find((item) => item.type === "HEADER")?.format?.toLowerCase();
     if (input.mediaType && input.mediaType !== headerFormat) throw new MassMessageValidationError("O tipo de mídia não corresponde ao cabeçalho do template aprovado.");
@@ -66,6 +70,14 @@ export class MassMessageService {
         const providerMessageId = input.mode === "text"
           ? await this.metaService.sendText(phone, input.message)
           : await this.metaService.sendTemplate(phone, templatePayload!);
+        await registerDispatchConversation({
+          phone,
+          user,
+          body: input.mode === "text" ? input.message : `Template Meta: ${templateName}`,
+          providerMessageId,
+          mode: input.mode,
+          templateName: input.mode === "template" ? templateName : undefined,
+        });
         return {
           phone,
           status: "accepted",
@@ -96,6 +108,70 @@ export class MassMessageService {
       uncertain: results.filter((item) => item.status === "uncertain").length,
       contacts: results,
     };
+  }
+}
+
+async function registerDispatchConversation(input: {
+  phone: string;
+  user?: { id: string; role: string };
+  body: string;
+  providerMessageId?: string;
+  mode: "text" | "template";
+  templateName?: string;
+}) {
+  const lead = await prisma.lead.findFirst({
+    where: { phone: input.phone, deletedAt: null },
+    select: { id: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const existing = await prisma.chatConversation.findFirst({
+    where: {
+      phone: input.phone,
+      deletedAt: null,
+      memory: { path: ["source"], equals: "mass-message" },
+    },
+    select: { id: true },
+    orderBy: { updatedAt: "desc" },
+  });
+
+  const conversation = existing
+    ? await prisma.chatConversation.update({
+        where: { id: existing.id },
+        data: {
+          updatedAt: new Date(),
+          ...(lead ? { leadId: lead.id } : {}),
+        },
+        select: { id: true },
+      })
+    : await prisma.chatConversation.create({
+        data: {
+          phone: input.phone,
+          state: "START",
+          memory: { source: "mass-message" },
+          ownerUserId: input.user?.role === "EMPLOYEE" ? input.user.id : null,
+          leadId: lead?.id,
+        },
+        select: { id: true },
+      });
+
+  try {
+    await prisma.chatMessage.create({
+      data: {
+        conversationId: conversation.id,
+        direction: "outbound",
+        body: input.body,
+        providerId: input.providerMessageId,
+        rawPayload: {
+          kind: "mass-dispatch",
+          mode: input.mode,
+          templateName: input.templateName,
+        } as Prisma.InputJsonValue,
+        sentAt: new Date(),
+      },
+    });
+  } catch (error) {
+    if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
   }
 }
 

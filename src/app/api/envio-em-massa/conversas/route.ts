@@ -6,6 +6,9 @@ import { requireCurrentUser } from "@/lib/auth-context";
 import { authErrorResponse } from "@/lib/api-errors";
 import { successResponse, errorResponse } from "@/lib/api-response";
 import { dispatchConversationScope, requireDispatchAdministrator } from "@/modules/envio-em-massa/conversation-access";
+import { MetaWhatsappService } from "@/services/meta/meta-whatsapp.service";
+
+const whatsappService = new MetaWhatsappService();
 
 const dispatchScope: Prisma.ChatConversationWhereInput = {
   deletedAt: null, memory: { path: ["source"], equals: "mass-message" },
@@ -68,4 +71,109 @@ export async function PATCH(request: Request) {
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json(errorResponse("Não foi possível atribuir o funcionário."), { status: 500 });
   }
+}
+
+export async function POST(request: Request) {
+  try {
+    const user = await requireCurrentUser();
+    const contentType = request.headers.get("content-type") ?? "";
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const conversationId = String(formData.get("conversationId") ?? "");
+      const caption = String(formData.get("caption") ?? "").trim();
+      const file = formData.get("file");
+      if (!z.string().uuid().safeParse(conversationId).success || !(file instanceof File)) {
+        return NextResponse.json(errorResponse("Arquivo ou conversa inválidos."), { status: 400 });
+      }
+
+      const conversation = await prisma.chatConversation.findFirst({
+        where: { ...dispatchConversationScope(user), id: conversationId },
+        select: { id: true, phone: true, memory: true },
+      });
+      if (!conversation) return NextResponse.json(errorResponse("Conversa não encontrada."), { status: 404 });
+
+      const buffer = Buffer.from(await file.arrayBuffer());
+      const mimeType = file.type || "application/octet-stream";
+      const dataUrl = `data:${mimeType};base64,${buffer.toString("base64")}`;
+      const mediaKind = mediaKindFromMime(mimeType);
+      const providerId = await sendMediaToWhatsapp({
+        phone: conversation.phone,
+        kind: mediaKind,
+        dataUrl,
+        fileName: file.name,
+        caption,
+      });
+
+      await prisma.$transaction([
+        prisma.chatMessage.create({
+          data: {
+            conversationId: conversation.id,
+            direction: "outbound",
+            body: JSON.stringify({
+              kind: "media",
+              mediaKind,
+              fileName: file.name,
+              mimeType,
+              dataUrl,
+              caption,
+            }),
+            providerId,
+            rawPayload: { kind: "manual-dispatch-media", mediaKind, fileName: file.name, mimeType },
+            sentAt: new Date(),
+          },
+        }),
+        prisma.chatConversation.update({ where: { id: conversation.id }, data: { updatedAt: new Date() } }),
+      ]);
+
+      return NextResponse.json(successResponse("Arquivo enviado.", null));
+    }
+
+    const body = z.object({ conversationId: z.string().uuid(), content: z.string().trim().min(1) }).safeParse(await request.json());
+    if (!body.success) return NextResponse.json(errorResponse("Mensagem inválida."), { status: 400 });
+
+    const conversation = await prisma.chatConversation.findFirst({
+      where: { ...dispatchConversationScope(user), id: body.data.conversationId },
+      select: { id: true, phone: true },
+    });
+    if (!conversation) return NextResponse.json(errorResponse("Conversa não encontrada."), { status: 404 });
+
+    const providerId = await whatsappService.sendText({ phone: conversation.phone, message: body.data.content });
+    await prisma.$transaction([
+      prisma.chatMessage.create({
+        data: {
+          conversationId: conversation.id,
+          direction: "outbound",
+          body: body.data.content,
+          providerId,
+          sentAt: new Date(),
+        },
+      }),
+      prisma.chatConversation.update({ where: { id: conversation.id }, data: { updatedAt: new Date() } }),
+    ]);
+
+    return NextResponse.json(successResponse("Mensagem enviada.", null));
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json(errorResponse(error instanceof Error ? error.message : "Não foi possível enviar a mensagem."), { status: 500 });
+  }
+}
+
+function mediaKindFromMime(mimeType: string): "image" | "video" | "audio" | "document" {
+  if (mimeType.startsWith("image/")) return "image";
+  if (mimeType.startsWith("video/")) return "video";
+  if (mimeType.startsWith("audio/")) return "audio";
+  return "document";
+}
+
+function sendMediaToWhatsapp(input: {
+  phone: string;
+  kind: "image" | "video" | "audio" | "document";
+  dataUrl: string;
+  fileName: string;
+  caption?: string;
+}) {
+  if (input.kind === "image") return whatsappService.sendImage({ phone: input.phone, image: input.dataUrl, caption: input.caption });
+  if (input.kind === "video") return whatsappService.sendVideo({ phone: input.phone, video: input.dataUrl, caption: input.caption });
+  if (input.kind === "audio") return whatsappService.sendAudio({ phone: input.phone, audio: input.dataUrl });
+  return whatsappService.sendDocument({ phone: input.phone, document: input.dataUrl, fileName: input.fileName, caption: input.caption });
 }

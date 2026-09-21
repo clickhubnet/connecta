@@ -40,7 +40,7 @@ export async function POST(request: Request) {
       throw new MassMessageValidationError("Envie os dados do disparo em JSON válido.");
     });
 
-    const result = await massMessageService.send(input);
+    const result = await massMessageService.send(input, user);
 
     return NextResponse.json(successResponse("Disparo em massa processado pela Meta.", result));
   } catch (error) {
