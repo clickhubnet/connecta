@@ -231,7 +231,7 @@ async function extractIncomingMessage(message: MetaMessage): Promise<{ message: 
 async function findDispatchConversation(phone: string) {
   const normalizedPhone = phone.replace(/\D/g, "");
   if (!normalizedPhone) return null;
-  return prisma.chatConversation.findFirst({
+  const dispatchConversation = await prisma.chatConversation.findFirst({
     where: {
       phone: normalizedPhone,
       deletedAt: null,
@@ -239,6 +239,25 @@ async function findDispatchConversation(phone: string) {
     },
     select: { id: true },
     orderBy: { updatedAt: "desc" },
+  });
+  if (dispatchConversation) return dispatchConversation;
+
+  const existingConversation = await prisma.chatConversation.findFirst({
+    where: { phone: normalizedPhone, deletedAt: null },
+    select: { id: true, memory: true },
+    orderBy: { updatedAt: "desc" },
+  });
+  if (!existingConversation) return null;
+
+  return prisma.chatConversation.update({
+    where: { id: existingConversation.id },
+    data: {
+      memory: {
+        ...(existingConversation.memory && typeof existingConversation.memory === "object" && !Array.isArray(existingConversation.memory) ? existingConversation.memory : {}),
+        source: "mass-message",
+      },
+    },
+    select: { id: true },
   });
 }
 

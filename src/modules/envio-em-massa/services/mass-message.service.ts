@@ -129,18 +129,24 @@ async function registerDispatchConversation(input: {
     where: {
       phone: input.phone,
       deletedAt: null,
-      memory: { path: ["source"], equals: "mass-message" },
     },
-    select: { id: true },
-    orderBy: { updatedAt: "desc" },
+    select: { id: true, memory: true },
+    orderBy: [
+      { updatedAt: "desc" },
+    ],
   });
 
   const conversation = existing
     ? await prisma.chatConversation.update({
         where: { id: existing.id },
         data: {
+          memory: {
+            ...(existing.memory && typeof existing.memory === "object" && !Array.isArray(existing.memory) ? existing.memory : {}),
+            source: "mass-message",
+          },
           updatedAt: new Date(),
           ...(lead ? { leadId: lead.id } : {}),
+          ...(input.user?.role === "EMPLOYEE" ? { ownerUserId: input.user.id } : {}),
         },
         select: { id: true },
       })
