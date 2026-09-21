@@ -41,7 +41,8 @@ export function DispatchConversations() {
   const audioChunksRef = useRef<Blob[]>([]);
   const inbox = useApiResource<InboxData>(`/api/envio-em-massa/conversas?filter=${filter}&search=${encodeURIComponent(search)}`);
   const detail = useApiResource<InboxData>(`/api/envio-em-massa/conversas?id=${selectedId ?? ""}`, Boolean(selectedId));
-  const thread = selectedId && !detail.loading && !detail.error ? detail.data?.conversations.find((item) => item.id === selectedId) : null;
+  const thread = selectedId && !detail.loading && !detail.error ? detail.data?.conversations.find((item) => item.id === selectedId) ?? null : null;
+  const freeFormWindowOpen = hasOpenCustomerServiceWindow(thread);
 
   useEffect(() => {
     const timer = window.setInterval(() => { void inbox.refresh(); if (selectedId) void detail.refresh(); }, 15000);
@@ -106,7 +107,7 @@ export function DispatchConversations() {
   }
 
   async function sendCurrentMessage() {
-    if (!selectedId || thread?.state === "BLOCKED" || isSending || (!message.trim() && !selectedFile)) return;
+    if (!selectedId || thread?.state === "BLOCKED" || !freeFormWindowOpen || isSending || (!message.trim() && !selectedFile)) return;
     setIsSending(true);
     setNotice("");
     try {
@@ -218,7 +219,7 @@ export function DispatchConversations() {
               </div>
             ) : null}
             <input ref={fileInputRef} type="file" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt" className="hidden" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file) { setSelectedFile(file); if (!file.type.startsWith("audio/") && audioPreviewUrl) { URL.revokeObjectURL(audioPreviewUrl); setAudioPreviewUrl(null); } } }} />
-            {thread?.state === "BLOCKED" ? <div className="shrink-0 border-t bg-rose-50 px-4 py-3 text-sm text-rose-700">Contato bloqueado. Desbloqueie para enviar novas mensagens.</div> : <div className="shrink-0 border-t bg-card px-4 py-3">
+            {!thread ? <div className="shrink-0 border-t bg-card px-4 py-3 text-sm text-muted-foreground">Carregando conversa…</div> : thread.state === "BLOCKED" ? <div className="shrink-0 border-t bg-rose-50 px-4 py-3 text-sm text-rose-700">Contato bloqueado. Desbloqueie para enviar novas mensagens.</div> : !freeFormWindowOpen ? <div className="shrink-0 border-t bg-amber-50 px-4 py-3 text-sm text-amber-800">Mensagem livre bloqueada pela Meta até o cliente responder. Envie um template aprovado em Disparos ou aguarde a resposta para abrir a janela de 24 horas.</div> : <div className="shrink-0 border-t bg-card px-4 py-3">
               <div className="flex items-end gap-2">
                 <Button type="button" variant="ghost" size="icon" aria-label="Anexar mídia ou documento" onClick={() => fileInputRef.current?.click()}><Paperclip className="h-4 w-4" /></Button>
                 <Button type="button" variant="ghost" size="icon" aria-label={isRecording ? "Parar gravação" : "Gravar áudio"} onClick={isRecording ? stopRecording : () => void startRecording()}>{isRecording ? <Square className="h-4 w-4 text-destructive" /> : <Mic className="h-4 w-4" />}</Button>
@@ -269,4 +270,10 @@ function messagePreview(body?: string | null) {
   if (media.mediaKind === "audio") return "Áudio";
   if (media.mediaKind === "video") return `Vídeo${media.caption ? `: ${media.caption}` : ""}`;
   return `Documento: ${media.fileName}`;
+}
+
+function hasOpenCustomerServiceWindow(thread: Thread | null) {
+  if (!thread) return false;
+  const windowStart = Date.now() - 24 * 60 * 60 * 1000;
+  return thread.messages.some((message) => message.direction === "inbound" && new Date(message.createdAt).getTime() >= windowStart);
 }

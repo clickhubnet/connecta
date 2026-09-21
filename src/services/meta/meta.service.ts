@@ -60,6 +60,7 @@ export class MetaService {
         200: "Verifique as permissões e os ativos vinculados ao token.",
         130429: "Limite de envio da Meta atingido.", 131048: "Envio limitado pela qualidade da conta.",
         131026: "Mensagem não pôde ser entregue a este contato.",
+        131047: "A janela de atendimento de 24 horas está fechada. Envie um template aprovado ou aguarde o cliente responder.",
         132000: "As variáveis não correspondem ao template.", 132001: "Template ou idioma não encontrado.",
         132015: "Template pausado.", 132016: "Template desativado.",
       };

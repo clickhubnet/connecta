@@ -7,8 +7,10 @@ import { authErrorResponse } from "@/lib/api-errors";
 import { successResponse, errorResponse } from "@/lib/api-response";
 import { dispatchConversationScope, requireDispatchAdministrator } from "@/modules/envio-em-massa/conversation-access";
 import { MetaWhatsappService } from "@/services/meta/meta-whatsapp.service";
+import { MetaApiError } from "@/services/meta/meta.service";
 
 const whatsappService = new MetaWhatsappService();
+const FREE_FORM_WINDOW_ERROR = "A Meta só permite texto livre, áudio, mídia ou documentos depois que o cliente responde e abre a janela de atendimento de 24 horas. Envie um template aprovado ou aguarde a resposta do cliente.";
 
 const dispatchScope: Prisma.ChatConversationWhereInput = {
   deletedAt: null, memory: { path: ["source"], equals: "mass-message" },
@@ -125,6 +127,7 @@ export async function POST(request: Request) {
       });
       if (!conversation) return NextResponse.json(errorResponse("Conversa não encontrada."), { status: 404 });
       if (conversation.state === "BLOCKED") return NextResponse.json(errorResponse("Contato bloqueado. Desbloqueie para enviar mensagens."), { status: 423 });
+      if (!await hasOpenCustomerServiceWindow(conversation.id)) return NextResponse.json(errorResponse(FREE_FORM_WINDOW_ERROR), { status: 409 });
 
       const buffer = Buffer.from(await file.arrayBuffer());
       const mimeType = file.type || "application/octet-stream";
@@ -171,6 +174,7 @@ export async function POST(request: Request) {
     });
     if (!conversation) return NextResponse.json(errorResponse("Conversa não encontrada."), { status: 404 });
     if (conversation.state === "BLOCKED") return NextResponse.json(errorResponse("Contato bloqueado. Desbloqueie para enviar mensagens."), { status: 423 });
+    if (!await hasOpenCustomerServiceWindow(conversation.id)) return NextResponse.json(errorResponse(FREE_FORM_WINDOW_ERROR), { status: 409 });
 
     const providerId = await whatsappService.sendText({ phone: conversation.phone, message: body.data.content });
     await prisma.$transaction([
@@ -188,8 +192,20 @@ export async function POST(request: Request) {
 
     return NextResponse.json(successResponse("Mensagem enviada.", null));
   } catch (error) {
-    return authErrorResponse(error) ?? NextResponse.json(errorResponse(error instanceof Error ? error.message : "Não foi possível enviar a mensagem."), { status: 500 });
+    const auth = authErrorResponse(error);
+    if (auth) return auth;
+    const status = error instanceof MetaApiError ? error.statusCode : 500;
+    return NextResponse.json(errorResponse(error instanceof Error ? error.message : "Não foi possível enviar a mensagem."), { status });
   }
+}
+
+async function hasOpenCustomerServiceWindow(conversationId: string) {
+  const windowStart = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const inbound = await prisma.chatMessage.findFirst({
+    where: { conversationId, direction: "inbound", createdAt: { gte: windowStart } },
+    select: { id: true },
+  });
+  return Boolean(inbound);
 }
 
 function mediaKindFromMime(mimeType: string): "image" | "video" | "audio" | "document" {
