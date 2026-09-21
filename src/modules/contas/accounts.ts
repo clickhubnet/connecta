@@ -80,6 +80,11 @@ export async function listAccounts() {
   const records = await prisma.appSetting.findMany({ where: { key: { startsWith: ACCOUNT_PREFIX } }, orderBy: { createdAt: "asc" } });
   const accounts = records.map(record => publicAccount(record.value as unknown as StoredAccount));
   const environment = await environmentAccountWithDetails();
+  if (environment) {
+    const metadata = await prisma.appSetting.findUnique({ where: { key: "private:whatsapp-environment:" + environment.phoneNumberId } });
+    const custom = metadata?.value as { name?: string } | undefined;
+    if (custom?.name?.trim()) environment.name = custom.name.trim();
+  }
   const agents = await prisma.agent.findMany({
     where: { deletedAt: null, zapiWhatsappNumber: { not: null } },
     select: { id: true, name: true, zapiWhatsappNumber: true, zapiInstanceId: true },

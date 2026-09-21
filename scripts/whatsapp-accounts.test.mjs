@@ -8,7 +8,7 @@ const records = new Map();
 const prisma = {
   appSetting: {
     findUnique: async ({ where }) => records.get(where.key),
-    findMany: async () => [...records.values()],
+    findMany: async ({ where }) => [...records.values()].filter(record => record.key.startsWith(where.key.startsWith)),
     upsert: async ({ where, create, update }) => {
       const record = records.has(where.key) ? { ...records.get(where.key), ...update } : create;
       records.set(where.key, record);
@@ -46,3 +46,7 @@ assert.equal(list[0].phone, "+55 11 97788-8846");
 assert.equal(list[1].name, "Updated");
 assert.ok(!JSON.stringify(list).includes("private-"));
 console.log("PASS account validation, encrypted persistence, updates, duplicates, environment visibility and secret redaction");
+
+records.set("private:whatsapp-environment:123456", { key: "private:whatsapp-environment:123456", value: { name: "Envios 8846" } });
+assert.equal((await listAccounts())[0].name, "Envios 8846");
+console.log("PASS persistent display name for configured account");
