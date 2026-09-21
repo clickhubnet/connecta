@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2, Clipboard, ListChecks, RotateCcw, Trash2, TriangleAlert } from "lucide-react";
+import { CheckCircle2, Clipboard, Download, ListChecks, RotateCcw, Trash2, TriangleAlert, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +16,8 @@ type ParsedNumber = {
 export function WhatsappNumberChecker() {
   const [input, setInput] = useState("");
   const [copied, setCopied] = useState(false);
+  const [fileName, setFileName] = useState("");
+  const [fileError, setFileError] = useState("");
 
   const result = useMemo(() => parseWhatsappList(input), [input]);
   const readyText = result.valid.map((item) => item.formatted).join("\n");
@@ -29,6 +31,44 @@ export function WhatsappNumberChecker() {
 
   function replaceWithReadyList() {
     setInput(readyText);
+  }
+
+  async function handleFileChange(file?: File | null) {
+    if (!file) return;
+    setFileName(file.name);
+    setFileError("");
+    try {
+      const extension = file.name.split(".").pop()?.toLowerCase();
+      if (extension === "csv" || file.type.includes("csv")) {
+        const text = await file.text();
+        setInput((current) => mergePhoneText(current, text));
+        return;
+      }
+
+      const buffer = await file.arrayBuffer();
+      const XLSX = await import("xlsx");
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const values: string[] = [];
+      for (const sheetName of workbook.SheetNames) {
+        const worksheet = workbook.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, { header: 1, defval: "" });
+        values.push(...rows.flatMap((row) => row.map((cell) => String(cell ?? ""))));
+      }
+      setInput((current) => mergePhoneText(current, values.join("\n")));
+    } catch {
+      setFileName("");
+      setFileError("Não foi possível ler a planilha. Use .xlsx, .xls ou .csv.");
+    }
+  }
+
+  async function downloadCleanSpreadsheet() {
+    if (!result.valid.length) return;
+    const XLSX = await import("xlsx");
+    const rows = result.valid.map((item) => ({ WHATSAPP: item.formatted }));
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Com WhatsApp");
+    XLSX.writeFile(workbook, `whatsapp-verificados-${new Date().toISOString().slice(0, 10)}.xlsx`);
   }
 
   return (
@@ -52,6 +92,18 @@ export function WhatsappNumberChecker() {
             A API oficial da Meta não permite consultar silenciosamente se um telefone possui WhatsApp. A confirmação real acontece no retorno do disparo. Esta tela prepara a lista no formato correto e reduz falhas por número inválido ou duplicado.
           </div>
 
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-4 text-sm font-medium text-primary transition hover:bg-primary/10">
+            <Upload className="h-4 w-4" />
+            {fileName ? `Planilha carregada: ${fileName}` : "Importar planilha .xlsx, .xls ou .csv"}
+            <input
+              className="hidden"
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={(event) => void handleFileChange(event.target.files?.[0])}
+            />
+          </label>
+          {fileError ? <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">{fileError}</p> : null}
+
           <label className="grid gap-2">
             <span className="text-sm font-semibold">Lista de números</span>
             <Textarea
@@ -73,6 +125,10 @@ export function WhatsappNumberChecker() {
             <Button type="button" variant="outline" onClick={replaceWithReadyList} disabled={!readyText} className="rounded-xl">
               <RotateCcw className="h-4 w-4" />
               Substituir pela lista limpa
+            </Button>
+            <Button type="button" variant="outline" onClick={() => void downloadCleanSpreadsheet()} disabled={!readyText} className="rounded-xl">
+              <Download className="h-4 w-4" />
+              Baixar planilha limpa
             </Button>
             <Button type="button" variant="outline" onClick={() => setInput("")} disabled={!input.trim()} className="rounded-xl">
               <Trash2 className="h-4 w-4" />
@@ -127,6 +183,27 @@ export function WhatsappNumberChecker() {
       </aside>
     </div>
   );
+}
+
+function mergePhoneText(current: string, next: string) {
+  const currentLines = current.split(/\n+/).map((item) => item.trim()).filter(Boolean);
+  const nextLines = extractPhoneCandidates(next);
+  return [...currentLines, ...nextLines].join("\n");
+}
+
+function extractPhoneCandidates(value: string) {
+  return value
+    .split(/[\n,;|\t]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => item.replace(/\D/g, ""))
+    .map((digits) => {
+      if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) return digits;
+      const withoutZeros = digits.replace(/^0+/, "");
+      if (withoutZeros.length === 10 || withoutZeros.length === 11) return `55${withoutZeros}`;
+      return withoutZeros;
+    })
+    .filter((digits) => /^55\d{10,11}$/.test(digits));
 }
 
 function StatCard({ label, value, tone }: { label: string; value: number; tone: string }) {
