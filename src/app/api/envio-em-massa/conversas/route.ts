@@ -1,3 +1,4 @@
+import { pendingRepliesQuery } from "@/modules/envio-em-massa/pending-replies";
 import { isMp3Audio } from "@/lib/audio/mp3";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
@@ -23,6 +24,7 @@ export async function GET(request: Request) {
     const params = new URL(request.url).searchParams;
     const id = params.get("id");
     const search = params.get("search")?.trim() ?? "";
+    let pending: Array<{ id: string; count: number }> | undefined;
     const where: Prisma.ChatConversationWhereInput = {
       ...dispatchConversationScope(user),
       ...(id ? { id } : {}),
@@ -34,14 +36,8 @@ export async function GET(request: Request) {
       if (filter === "unread") where.messages = { some: { direction: "inbound", readAt: null } };
       if (filter === "open") where.state = { notIn: ["FINISHED", "BLOCKED"] };
       if (filter === "blocked") where.state = "BLOCKED";
-      // The latest message determines whether a reply is still pending.
       if (filter === "unanswered") {
-        const pending = await prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
-          SELECT c.id FROM "ChatConversation" c
-          WHERE c."deletedAt" IS NULL AND c.memory->>'source' = 'mass-message'
-          AND (${user.role === "ADMIN"} OR c."ownerUserId" = ${user.id}::uuid)
-          AND (SELECT m.direction FROM "ChatMessage" m WHERE m."conversationId" = c.id ORDER BY m."createdAt" DESC, m.id DESC LIMIT 1) = 'inbound'
-        `);
+        pending = await prisma.$queryRaw<Array<{ id: string; count: number }>>(pendingRepliesQuery(user));
         where.id = { in: pending.map((row) => row.id) };
       }
     }
@@ -50,8 +46,11 @@ export async function GET(request: Request) {
       select: { id: true, phone: true, ownerUserId: true, state: true, lead: { select: { name: true } }, owner: { select: { name: true } }, messages: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: id ? 100 : 1, select: { id: true, direction: true, body: true, createdAt: true } } },
     });
     if (id && !conversations.length) return NextResponse.json(errorResponse("Conversa não encontrada."), { status: 404 });
+    pending ??= await prisma.$queryRaw<Array<{ id: string; count: number }>>(pendingRepliesQuery(user, conversations.map(item => item.id)));
+    const pendingCounts = new Map(pending.map(item => [item.id, item.count]));
+    const conversationsWithPending = conversations.map(item => ({ ...item, pendingReplyCount: pendingCounts.get(item.id) ?? 0 }));
     const employees = user.role === "ADMIN" ? await prisma.user.findMany({ where: { role: "EMPLOYEE", status: "ACTIVE", deletedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : [];
-    return NextResponse.json(successResponse("Conversas consultadas.", { conversations, employees }), { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(successResponse("Conversas consultadas.", { conversations: conversationsWithPending, employees }), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json(errorResponse("Não foi possível consultar as conversas."), { status: 500 });
   }
@@ -146,6 +145,7 @@ export async function POST(request: Request) {
       }
       const media = { buffer: originalBuffer, mimeType, fileName: mediaKind === "audio" ? ensureMp3FileName(file.name) : file.name };
       const dataUrl = `data:${mimeType};base64,${media.buffer.toString("base64")}`;
+      const replyThrough = new Date().toISOString();
       const providerId = await sendMediaToWhatsapp({
         phone: conversation.phone,
         kind: mediaKind,
@@ -168,7 +168,7 @@ export async function POST(request: Request) {
               caption,
             }),
             providerId,
-            rawPayload: { kind: "manual-dispatch-media", mediaKind, fileName: media.fileName, mimeType },
+            rawPayload: { kind: "manual-dispatch-media", mediaKind, fileName: media.fileName, mimeType, replyThrough },
             sentAt: new Date(),
           },
         }),
@@ -189,6 +189,7 @@ export async function POST(request: Request) {
     if (conversation.state === "BLOCKED") return NextResponse.json(errorResponse("Contato bloqueado. Desbloqueie para enviar mensagens."), { status: 423 });
     if (!await hasOpenCustomerServiceWindow(conversation.id)) return NextResponse.json(errorResponse(FREE_FORM_WINDOW_ERROR), { status: 409 });
 
+    const replyThrough = new Date().toISOString();
     const providerId = await whatsappService.sendText({ phone: conversation.phone, message: body.data.content });
     await prisma.$transaction([
       prisma.chatMessage.create({
@@ -197,6 +198,7 @@ export async function POST(request: Request) {
           direction: "outbound",
           body: body.data.content,
           providerId,
+          rawPayload: { kind: "manual-dispatch-text", replyThrough },
           sentAt: new Date(),
         },
       }),
