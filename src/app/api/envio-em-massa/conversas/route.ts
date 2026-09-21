@@ -57,10 +57,25 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const user = await requireCurrentUser();
-    requireDispatchAdministrator(user);
-    const body = z.object({ conversationId: z.string().uuid(), ownerUserId: z.string().uuid().nullable() }).safeParse(await request.json());
+    const body = z.object({
+      conversationId: z.string().uuid(),
+      action: z.enum(["assign", "block", "unblock"]).default("assign"),
+      ownerUserId: z.string().uuid().nullable().optional(),
+    }).safeParse(await request.json());
     if (!body.success) return NextResponse.json(errorResponse("Dados inválidos."), { status: 400 });
-    const { conversationId, ownerUserId } = body.data;
+    const { conversationId, action } = body.data;
+
+    if (action === "block" || action === "unblock") {
+      const count = (await prisma.chatConversation.updateMany({
+        where: { ...dispatchConversationScope(user), id: conversationId },
+        data: { state: action === "block" ? "BLOCKED" : "START" },
+      })).count;
+      if (!count) return NextResponse.json(errorResponse("Conversa não encontrada."), { status: 404 });
+      return NextResponse.json(successResponse(action === "block" ? "Contato bloqueado." : "Contato desbloqueado.", null));
+    }
+
+    requireDispatchAdministrator(user);
+    const ownerUserId = body.data.ownerUserId ?? null;
     const count = await prisma.$transaction(async (tx) => {
       if (ownerUserId && !await tx.user.findFirst({ where: { id: ownerUserId, role: "EMPLOYEE", status: "ACTIVE", deletedAt: null } })) return -1;
       return (await tx.chatConversation.updateMany({ where: { ...dispatchScope, id: conversationId }, data: { ownerUserId } })).count;
@@ -70,6 +85,23 @@ export async function PATCH(request: Request) {
     return NextResponse.json(successResponse("Responsável atualizado.", null));
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json(errorResponse("Não foi possível atribuir o funcionário."), { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const user = await requireCurrentUser();
+    const params = new URL(request.url).searchParams;
+    const conversationId = params.get("id") ?? "";
+    if (!z.string().uuid().safeParse(conversationId).success) return NextResponse.json(errorResponse("Conversa não encontrada."), { status: 404 });
+    const count = (await prisma.chatConversation.updateMany({
+      where: { ...dispatchConversationScope(user), id: conversationId },
+      data: { deletedAt: new Date() },
+    })).count;
+    if (!count) return NextResponse.json(errorResponse("Conversa não encontrada."), { status: 404 });
+    return NextResponse.json(successResponse("Conversa excluída.", null));
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json(errorResponse("Não foi possível excluir a conversa."), { status: 500 });
   }
 }
 
@@ -89,9 +121,10 @@ export async function POST(request: Request) {
 
       const conversation = await prisma.chatConversation.findFirst({
         where: { ...dispatchConversationScope(user), id: conversationId },
-        select: { id: true, phone: true, memory: true },
+        select: { id: true, phone: true, state: true, memory: true },
       });
       if (!conversation) return NextResponse.json(errorResponse("Conversa não encontrada."), { status: 404 });
+      if (conversation.state === "BLOCKED") return NextResponse.json(errorResponse("Contato bloqueado. Desbloqueie para enviar mensagens."), { status: 423 });
 
       const buffer = Buffer.from(await file.arrayBuffer());
       const mimeType = file.type || "application/octet-stream";
@@ -134,9 +167,10 @@ export async function POST(request: Request) {
 
     const conversation = await prisma.chatConversation.findFirst({
       where: { ...dispatchConversationScope(user), id: body.data.conversationId },
-      select: { id: true, phone: true },
+      select: { id: true, phone: true, state: true },
     });
     if (!conversation) return NextResponse.json(errorResponse("Conversa não encontrada."), { status: 404 });
+    if (conversation.state === "BLOCKED") return NextResponse.json(errorResponse("Contato bloqueado. Desbloqueie para enviar mensagens."), { status: 423 });
 
     const providerId = await whatsappService.sendText({ phone: conversation.phone, message: body.data.content });
     await prisma.$transaction([

@@ -67,6 +67,13 @@ export class MassMessageService {
 
     const results = await mapWithConcurrency(contacts, CONCURRENCY, async (phone): Promise<ContactResult> => {
       try {
+        if (await isBlockedDispatchContact(phone)) {
+          return {
+            phone,
+            status: "failed",
+            detail: "Contato bloqueado nas conversas de disparo.",
+          };
+        }
         const providerMessageId = input.mode === "text"
           ? await this.metaService.sendText(phone, input.message)
           : await this.metaService.sendTemplate(phone, templatePayload!);
@@ -109,6 +116,18 @@ export class MassMessageService {
       contacts: results,
     };
   }
+}
+
+async function isBlockedDispatchContact(phone: string) {
+  return Boolean(await prisma.chatConversation.findFirst({
+    where: {
+      phone,
+      deletedAt: null,
+      state: "BLOCKED",
+      memory: { path: ["source"], equals: "mass-message" },
+    },
+    select: { id: true },
+  }));
 }
 
 async function registerDispatchConversation(input: {
