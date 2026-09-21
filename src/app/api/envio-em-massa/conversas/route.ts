@@ -132,8 +132,13 @@ export async function POST(request: Request) {
       const buffer = Buffer.from(await file.arrayBuffer());
       const mimeType = normalizeMimeType(file.type || "application/octet-stream");
       const mediaKind = mediaKindFromMime(mimeType);
-      if (mediaKind === "audio" && !isSupportedWhatsappAudioMime(mimeType)) {
-        return NextResponse.json(errorResponse("Formato de áudio não aceito pela Meta. Use .ogg com codec Opus, .mp3, .m4a, .aac ou .amr."), { status: 415 });
+      if (mediaKind === "audio") {
+        if (!isSupportedWhatsappAudioMime(mimeType)) {
+          return NextResponse.json(errorResponse("Formato de áudio não aceito pela Meta. Use .ogg com codec Opus, .mp3, .m4a, .aac ou .amr."), { status: 415 });
+        }
+        if (buffer.byteLength < 512) {
+          return NextResponse.json(errorResponse("O áudio gravado ficou vazio. Grave novamente antes de enviar."), { status: 400 });
+        }
       }
       const dataUrl = `data:${mimeType};base64,${buffer.toString("base64")}`;
       const providerId = await sendMediaToWhatsapp({

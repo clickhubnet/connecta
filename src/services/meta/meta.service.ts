@@ -192,6 +192,7 @@ export class MetaService {
     const parsed = parseDataUrl(dataUrl, mimeType, fileName);
     const formData = new FormData();
     formData.set("messaging_product", "whatsapp");
+    formData.set("type", parsed.mimeType);
     formData.set("file", new File([parsed.bytes], parsed.fileName, { type: parsed.mimeType }));
     const result = await this.requestRaw<{ id?: string }>(`${config.phoneNumberId}/media`, {
       method: "POST",
@@ -241,8 +242,15 @@ function parseDataUrl(dataUrl: string, fallbackMimeType?: string, fallbackFileNa
   const bytes = isBase64
     ? Buffer.from(payload, "base64")
     : Buffer.from(decodeURIComponent(payload), "utf8");
-  const fileName = fallbackFileName || `media.${extensionFromMime(mimeType)}`;
+  const fileName = ensureExtension(fallbackFileName || "media", mimeType);
   return { bytes, mimeType, fileName };
+}
+
+function ensureExtension(fileName: string, mimeType: string) {
+  const extension = extensionFromMime(mimeType);
+  if (fileName.toLowerCase().endsWith(`.${extension}`)) return fileName;
+  const withoutKnownMediaExtension = fileName.replace(/\.(webm|oga|ogg|opus|m4a|mp3|aac|amr|mp4|jpg|jpeg|png|webp|pdf|bin)$/i, "");
+  return `${withoutKnownMediaExtension}.${extension}`;
 }
 
 function extensionFromMime(mimeType: string) {
@@ -251,7 +259,9 @@ function extensionFromMime(mimeType: string) {
   if (mimeType.includes("webp")) return "webp";
   if (mimeType.includes("mpeg")) return "mp3";
   if (mimeType.includes("ogg")) return "ogg";
-  if (mimeType.includes("mp4")) return "mp4";
+  if (mimeType.includes("aac")) return "aac";
+  if (mimeType.includes("amr")) return "amr";
+  if (mimeType.includes("mp4")) return mimeType.startsWith("audio/") ? "m4a" : "mp4";
   if (mimeType.includes("pdf")) return "pdf";
   return "bin";
 }
