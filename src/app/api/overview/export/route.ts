@@ -25,7 +25,7 @@ export async function GET(request: Request) {
       { Indicador: "Receita", Valor: overview.summary.revenue },
       { Indicador: "Conversas finalizadas pela IA/fluxo", Valor: overview.summary.conversationsFinished },
       { Indicador: "Conversas assumidas", Valor: overview.summary.conversationsAssumed },
-      { Indicador: "Conversas com Cris ativa", Valor: overview.summary.conversationsBotActive },
+      { Indicador: "Conversas com Sofia ativa", Valor: overview.summary.conversationsBotActive },
       { Indicador: "Tarefas concluidas", Valor: overview.summary.tasksCompleted },
       { Indicador: "Despesas totais", Valor: overview.summary.expensesTotal },
       { Indicador: "Despesas pagas", Valor: overview.summary.expensesPaid },

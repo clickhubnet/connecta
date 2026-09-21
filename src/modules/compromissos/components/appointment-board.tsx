@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { CalendarDays, Check, LayoutGrid, List, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { AlertTriangle, CalendarDays, Check, Clock3, LayoutGrid, List, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { MetricCard } from "@/components/cards/metric-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -169,23 +170,24 @@ export function AppointmentBoard() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="management-page space-y-5">
       <div className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-[auto_1fr_auto]">
+        <div className="management-toolbar grid gap-3 md:grid-cols-[auto_1fr_auto]">
           <Button type="button" onClick={() => setShowCreateModal(true)}>
             <Plus className="h-4 w-4" aria-hidden="true" />
-            Cadastrar Compromisso
+            Cadastrar compromisso
           </Button>
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
               className="pl-9"
-              placeholder="Pesquisar compromisso, lead ou responsavel"
+              aria-label="Pesquisar compromissos"
+              placeholder="Pesquisar compromisso, lead ou responsável"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
-          <div className="flex rounded-md border bg-background p-1">
+          <div className="flex gap-1 rounded-xl border bg-background p-1">
             <Button
               aria-label="Visualizar kanban"
               size="sm"
@@ -194,6 +196,7 @@ export function AppointmentBoard() {
               onClick={() => setViewMode("kanban")}
             >
               <LayoutGrid className="h-4 w-4" aria-hidden="true" />
+              Quadro
             </Button>
             <Button
               aria-label="Visualizar tabela"
@@ -203,14 +206,15 @@ export function AppointmentBoard() {
               onClick={() => setViewMode("table")}
             >
               <List className="h-4 w-4" aria-hidden="true" />
+              Lista
             </Button>
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Metric label="Compromissos" value={filtered.length.toString()} />
-          <Metric label="Hoje" value={todayCount.toString()} />
-          <Metric label="Atrasados" value={overdue.toString()} />
+        <div className="grid gap-4 sm:grid-cols-3">
+          <MetricCard title="Compromissos" value={loading ? "..." : filtered.length.toString()} helper="Atividades na sua agenda" icon={CalendarDays} />
+          <MetricCard title="Hoje" value={loading ? "..." : todayCount.toString()} helper="Compromissos do dia" icon={Clock3} tone="indigo" />
+          <MetricCard title="Atrasados" value={loading ? "..." : overdue.toString()} helper="Prazos que precisam de atenção" icon={AlertTriangle} tone="amber" />
         </div>
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -254,15 +258,6 @@ export function AppointmentBoard() {
         onClose={() => setShowCreateModal(false)}
         onSubmit={handleSubmit}
       />
-    </div>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border bg-background p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-semibold">{value}</p>
     </div>
   );
 }
@@ -392,7 +387,7 @@ function KanbanView({
         return (
           <Card
             key={column.id}
-            className="min-h-[520px] w-[292px] shrink-0 border-none bg-muted/80 shadow-sm"
+            className="management-kanban-column min-h-[360px] w-[300px] shrink-0"
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => {
               event.preventDefault();
@@ -400,7 +395,7 @@ function KanbanView({
               if (appointmentId) void onUpdate(appointmentId, { stageId: column.id });
             }}
           >
-            <CardHeader className="p-3 pb-2">
+            <CardHeader className="border-b border-border/60 p-4">
               <StageHeader
                 stage={column}
                 count={columnAppointments.length}
@@ -408,7 +403,7 @@ function KanbanView({
                 onDeleteStage={onDeleteStage}
               />
             </CardHeader>
-            <CardContent className="max-h-[calc(100vh-310px)] space-y-2 overflow-y-auto p-3 pt-0">
+            <CardContent className="max-h-[560px] space-y-3 overflow-y-auto p-3">
               {loading ? (
                 <EmptyState text="Carregando" />
               ) : columnAppointments.length ? (
@@ -431,7 +426,7 @@ function KanbanView({
           </Card>
         );
       })}
-        <div className="w-[292px] shrink-0 rounded-md bg-muted/70 p-3 shadow-sm">
+        <div className="w-[280px] shrink-0 rounded-2xl border border-dashed border-red-200 bg-card/80 p-4">
           <div className="space-y-2">
             <Input
               placeholder="Adicionar uma lista..."
@@ -471,9 +466,9 @@ function TableView({
   if (loading) return <EmptyState text="Carregando compromissos" />;
 
   return (
-    <div className="overflow-hidden rounded-md border bg-background">
+    <div className="management-surface overflow-hidden border bg-background">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1080px] text-sm">
+        <table className="management-table w-full min-w-[1080px] text-sm">
           <thead className="bg-muted/60 text-left text-xs uppercase text-muted-foreground">
             <tr>
               <th className="px-3 py-3 font-medium">Compromisso</th>
@@ -606,7 +601,7 @@ function AppointmentCard({
 }) {
   return (
     <div
-      className="rounded-md bg-background p-3 text-sm shadow-sm transition-shadow hover:shadow-md"
+      className="management-task rounded-2xl border bg-card p-4 text-sm shadow-sm transition-shadow hover:shadow-md"
       draggable
       onDragStart={(event) => {
         event.dataTransfer.setData("text/plain", appointment.id);
@@ -615,7 +610,7 @@ function AppointmentCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate font-medium">{appointment.title}</p>
+          <p className="font-semibold leading-relaxed">{appointment.title}</p>
           <span className="mt-1 inline-flex rounded px-1.5 py-0.5 text-xs font-medium text-white" style={{ backgroundColor: priorityColor(appointment.priority) }}>
             {priorityLabels[appointment.priority]}
           </span>
@@ -632,7 +627,9 @@ function AppointmentCard({
           {formatDate(appointment.dueAt) || formatDate(appointment.startsAt) || "Sem data"}
         </p>
       </div>
-      <div className="mt-3 space-y-2">
+      <details className="mt-4 border-t border-border/60 pt-3">
+        <summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-primary">Editar detalhes</summary>
+        <div className="mt-3 space-y-2">
         <StageSelect
           value={appointment.stageId ?? ""}
           stages={stages}
@@ -649,7 +646,8 @@ function AppointmentCard({
             onUpdate(appointment.id, buildAssignmentPayload(responsibleId, currentUserId))
           }
         />
-      </div>
+        </div>
+      </details>
     </div>
   );
 }

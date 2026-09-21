@@ -1,5 +1,6 @@
 node_modules
 .next
+.next-dev
 .env
 .env.local
 dist
@@ -15,3 +16,6 @@ public/*.xlsx
 .codex-backups
 .env*
 !.env.example
+CEPS BASE CLARO.xlsx
+leads.csv
+programador.png

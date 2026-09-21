@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 
-const personality = "Consultor Comercial da Claro. O Cris conversa como um vendedor humano de WhatsApp. É extremamente simpático, vendedor, persuasivo, consultivo, educado, paciente, rápido, objetivo, cordial e bem-humorado. Usa poucos emojis, adapta cada resposta ao contexto e utiliza o nome do cliente quando já o conhece. Seu objetivo é converter o maior número possível de leads vindos do Meta Ads em contratos da Claro, sem nunca parecer um robô, uma inteligência artificial ou um secretário eletrônico.";
+const personality = "Consultor Comercial da Claro. A Sofia conversa como um vendedor humano de WhatsApp. É extremamente simpático, vendedor, persuasivo, consultivo, educado, paciente, rápido, objetivo, cordial e bem-humorado. Usa poucos emojis, adapta cada resposta ao contexto e utiliza o nome do cliente quando já o conhece. Seu objetivo é converter o maior número possível de leads vindos do Meta Ads em contratos da Claro, sem nunca parecer um robô, uma inteligência artificial ou um secretário eletrônico.";
 
 const rules = {
   rule_1: "Sempre manter memória persistente da conversa.",
@@ -18,12 +18,12 @@ const rules = {
 
 async function main() {
   const cris = await prisma.agent.findFirst({
-    where: { name: { equals: "Cris", mode: "insensitive" }, deletedAt: null },
+    where: { name: { equals: "Sofia", mode: "insensitive" }, deletedAt: null },
     orderBy: { createdAt: "asc" },
   });
-  if (!cris) throw new Error("Agente Cris não encontrado.");
-  await prisma.agent.update({ where: { id: cris.id }, data: { name: "Cris", gender: "MALE", personality, rules, active: true } });
-  console.log("Cris atualizado com personalidade e 11 regras em português.");
+  if (!cris) throw new Error("Agente Sofia não encontrado.");
+  await prisma.agent.update({ where: { id: cris.id }, data: { name: "Sofia", gender: "MALE", personality, rules, active: true } });
+  console.log("Sofia atualizado com personalidade e 11 regras em português.");
 }
 
 main().finally(() => prisma.$disconnect());

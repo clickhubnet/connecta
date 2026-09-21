@@ -1,26 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, Loader2, Megaphone, RefreshCw, Send, TriangleAlert } from "lucide-react";
+import { CheckCircle2, Loader2, Megaphone, Send, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/utils/cn";
-
-type TemplateOption = {
-  id: string;
-  name: string;
-  language: string;
-  status: string;
-  category?: string;
-  components: Array<{ type: string; format?: string; text?: string }>;
-  unsupportedReason: string | null;
-  headerVariables: string[];
-  bodyVariables: string[];
-  hasMediaHeader: boolean;
-  previewText: string;
-};
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { addCampaignHistory } from "@/modules/envio-em-massa/history";
 
 type DispatchResult = {
   total: number;
@@ -38,26 +26,27 @@ type DispatchResult = {
 const LAST_MASS_MESSAGE_RESULT_KEY = "connecta:meta:last-mass-message-result";
 
 export function MassMessagePanel() {
+  const { data: user } = useCurrentUser();
+  const [testPhone, setTestPhone] = useState("");
+  const [testConsent, setTestConsent] = useState(false);
+  const [testResult, setTestResult] = useState<DispatchResult | null>(null);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [sendingTest, setSendingTest] = useState(false);
   const [contacts, setContacts] = useState("");
-  const [templates, setTemplates] = useState<TemplateOption[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [mode, setMode] = useState<"text" | "template">("text");
+  const [message, setMessage] = useState("");
+  const [templateName, setTemplateName] = useState("");
+  const [language, setLanguage] = useState("pt_BR");
+  const [mediaType, setMediaType] = useState<"" | "image" | "video" | "document">("");
   const [headerValues, setHeaderValues] = useState<string[]>([]);
   const [bodyValues, setBodyValues] = useState<string[]>([]);
   const [mediaUrl, setMediaUrl] = useState("");
   const [consentConfirmed, setConsentConfirmed] = useState(false);
-  const [maxBatchContacts, setMaxBatchContacts] = useState(100);
-  const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
+  const maxBatchContacts = 100;
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DispatchResult | null>(null);
   const sendingRef = useRef(false);
-
-  const selectedTemplate = useMemo(
-    () => templates.find((template) => template.id === selectedTemplateId),
-    [selectedTemplateId, templates],
-  );
-
-  const compatibleTemplates = useMemo(() => templates.filter((template) => !template.unsupportedReason), [templates]);
 
   const estimatedContacts = useMemo(() => {
     const unique = new Set(
@@ -70,17 +59,7 @@ export function MassMessagePanel() {
     return unique.size;
   }, [contacts]);
 
-  const preview = useMemo(() => {
-    if (!selectedTemplate) return "";
-    return selectedTemplate.previewText.replace(/\{\{([^{}]+)\}\}/g, (_match, rawIndex: string) => {
-      const index = Number(rawIndex.trim()) - 1;
-      return bodyValues[index]?.trim() || `{{${rawIndex}}}`;
-    });
-  }, [bodyValues, selectedTemplate]);
-
-  useEffect(() => {
-    void loadTemplates();
-  }, []);
+  const preview = mode === "text" ? message : templateName ? `Template: ${templateName} (${language})` : "";
 
   useEffect(() => {
     try {
@@ -102,57 +81,25 @@ export function MassMessagePanel() {
     }
   }, []);
 
-  useEffect(() => {
-    setHeaderValues(Array.from({ length: selectedTemplate?.headerVariables.length ?? 0 }, () => ""));
-    setBodyValues(Array.from({ length: selectedTemplate?.bodyVariables.length ?? 0 }, () => ""));
-    setMediaUrl("");
-  }, [selectedTemplateId, selectedTemplate?.bodyVariables.length, selectedTemplate?.headerVariables.length]);
-
-  async function loadTemplates() {
-    setIsLoadingTemplates(true);
-    setError(null);
-
-    try {
-      const response = await fetch("/api/envio-em-massa", { method: "GET" });
-      const payload = (await response.json()) as {
-        status: "success" | "error";
-        message: string;
-        data?: { templates: TemplateOption[]; maxBatchContacts: number };
-      };
-
-      if (!response.ok || payload.status !== "success" || !payload.data) {
-        throw new Error(payload.message || "Não foi possível carregar os templates.");
-      }
-
-      setTemplates(payload.data.templates);
-      setMaxBatchContacts(payload.data.maxBatchContacts);
-      const firstCompatible = payload.data.templates.find((template) => !template.unsupportedReason);
-      setSelectedTemplateId((current) => current || firstCompatible?.id || payload.data?.templates[0]?.id || "");
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Falha ao carregar os templates da Meta.");
-    } finally {
-      setIsLoadingTemplates(false);
-    }
-  }
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>, test = false) {
     event.preventDefault();
     if (sendingRef.current) return;
     sendingRef.current = true;
     setIsSending(true);
-    setError(null);
+    setSendingTest(test);
+    if (test) { setTestError(null); setTestResult(null); } else setError(null);
 
     try {
       const response = await fetch("/api/envio-em-massa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contactsText: contacts,
-          templateId: selectedTemplateId,
+          contactsText: test ? testPhone : contacts,
+          mode, message, templateName, language, mediaType,
           headerValues,
           bodyValues,
           mediaUrl,
-          consentConfirmed,
+          consentConfirmed: test ? testConsent : consentConfirmed,
         }),
       });
       const payload = (await response.json()) as {
@@ -165,125 +112,78 @@ export function MassMessagePanel() {
         throw new Error(payload.message || "Não foi possível concluir o envio.");
       }
 
-      setResult(payload.data);
-      window.localStorage.setItem(LAST_MASS_MESSAGE_RESULT_KEY, JSON.stringify(payload.data));
+      if (test) setTestResult(payload.data);
+      else {
+        setResult(payload.data);
+        try {
+          if (!user?.id) throw new Error("Usuário indisponível");
+          addCampaignHistory(user.id, {
+            id: crypto.randomUUID(), createdAt: new Date().toISOString(),
+            title: mode === "template" ? templateName : "Campanha de texto livre",
+            mode, result: payload.data,
+          });
+          window.localStorage.setItem(LAST_MASS_MESSAGE_RESULT_KEY, JSON.stringify(payload.data));
+        } catch {
+          setError("O envio foi processado, mas não foi possível salvar o histórico neste navegador. Confira o resultado abaixo antes de reenviar.");
+        }
+      }
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Falha no envio em massa.");
+      const message = submitError instanceof Error ? submitError.message : "Falha no envio em massa.";
+      if (test) setTestError(message); else setError(message);
     } finally {
       sendingRef.current = false;
       setIsSending(false);
+      setSendingTest(false);
     }
   }
 
-  const submitDisabled =
-    isSending ||
-    isLoadingTemplates ||
-    !selectedTemplate ||
-    Boolean(selectedTemplate.unsupportedReason) ||
-    !contacts.trim() ||
-    !consentConfirmed;
+  const messageReady = mode === "text" ? Boolean(message.trim()) : Boolean(templateName.trim() && language.trim());
+  const submitDisabled = isSending || !messageReady || !contacts.trim() || !consentConfirmed;
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-      <Card>
-        <CardHeader>
+    <div className="dispatch-layout">
+      <Card className="dispatch-editor overview-card overview-red relative isolate min-w-0 overflow-hidden rounded-2xl border-border/70 bg-card">
+        <CardHeader className="mb-0 border-0 bg-none p-5 sm:p-6">
           <div className="flex items-center gap-3">
-            <div className="rounded-md bg-emerald-500/10 p-3 text-emerald-600">
+            <div className="rounded-2xl bg-primary/10 p-3 text-primary">
               <Megaphone className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle>Disparo em massa pela Meta</CardTitle>
+              <CardTitle>Novo disparo</CardTitle>
               <CardDescription>
-                Envie campanhas com templates aprovados no WhatsApp Business Manager.
+                Prepare sua mensagem e selecione quem vai recebê-la.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent>
-          <form className="space-y-5" onSubmit={handleSubmit}>
+        <CardContent className="dispatch-editor-body p-5 pt-0 sm:p-6 sm:pt-0">
+          <form className="space-y-5" onSubmit={(event) => void handleSubmit(event)}>
             <fieldset className="space-y-5" disabled={isSending}>
+              <div className="space-y-2"><p className="text-xs font-semibold">Tipo de envio</p><div role="group" aria-label="Tipo de envio" className="inline-flex gap-1 rounded-xl bg-muted/60 p-1">{([{ value: "text", label: "Texto livre" }, { value: "template", label: "Template Meta" }] as const).map((item) => <button key={item.value} type="button" aria-pressed={mode === item.value} onClick={() => setMode(item.value)} className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${mode === item.value ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{item.label}</button>)}</div></div>
+              {mode === "text" ? <label className="grid gap-2"><span className="text-sm font-semibold">Mensagem</span><Textarea value={message} onChange={(event) => setMessage(event.target.value)} maxLength={4096} placeholder="Digite a mensagem que será enviada…" className="min-h-44 rounded-xl bg-muted/20" /><span className="text-[11px] text-muted-foreground">Texto livre depende de uma janela de atendimento aberta na Meta.</span></label> : <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-2"><span className="text-xs font-semibold">Nome do template</span><Input value={templateName} onChange={(event) => setTemplateName(event.target.value)} placeholder="ex: promocao_maio" className="h-11 rounded-xl bg-muted/20" /></label><label className="grid gap-2"><span className="text-xs font-semibold">Idioma</span><Input value={language} onChange={(event) => setLanguage(event.target.value)} placeholder="pt_BR" className="h-11 rounded-xl bg-muted/20" /></label></div>
+                <p className="text-[11px] text-muted-foreground">Digite o nome e o idioma exatamente como aprovados na Meta.</p>
+                <div className="space-y-2"><p className="text-xs font-semibold">Mídia do cabeçalho</p><div className="flex flex-wrap gap-2">{([{ value: "", label: "Sem mídia" }, { value: "image", label: "Imagem" }, { value: "video", label: "Vídeo" }, { value: "document", label: "Documento" }] as const).map((item) => <button key={item.value} type="button" aria-pressed={mediaType === item.value} onClick={() => { setMediaType(item.value); setMediaUrl(""); }} className={`rounded-lg border px-3 py-2 text-xs ${mediaType === item.value ? "border-primary bg-primary/5 text-primary" : "text-muted-foreground"}`}>{item.label}</button>)}</div></div>
+                {mediaType && <label className="grid gap-2"><span className="text-xs font-semibold">URL da mídia</span><Input type="url" value={mediaUrl} onChange={(event) => setMediaUrl(event.target.value)} placeholder="https://seudominio.com/arquivo" className="h-11 rounded-xl" /><span className="text-[11px] text-muted-foreground">Use uma URL HTTPS pública compatível com o template.</span></label>}
+                <details className="rounded-xl border p-3"><summary className="cursor-pointer text-xs font-medium">Variáveis do template (opcional)</summary><div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="grid gap-2 text-xs">Cabeçalho<Textarea value={headerValues.join("\n")} onChange={(event) => setHeaderValues(event.target.value ? event.target.value.split("\n") : [])} placeholder="Um valor por linha, na ordem das variáveis" /></label><label className="grid gap-2 text-xs">Corpo da mensagem<Textarea value={bodyValues.join("\n")} onChange={(event) => setBodyValues(event.target.value ? event.target.value.split("\n") : [])} placeholder="Um valor por linha, na ordem das variáveis" /></label></div></details>
+              </div>}
+
               <div className="grid gap-2">
-                <p className="text-sm font-medium">Contatos</p>
+                <label htmlFor="dispatch-contacts" className="text-sm font-semibold">Destinatários</label>
                 <Textarea
+                  id="dispatch-contacts"
                   value={contacts}
                   onChange={(event) => setContacts(event.target.value)}
                   placeholder={"Cole um número por linha\n5511999999999\n5511988887777"}
-                  className="min-h-44"
+                  className="min-h-40 rounded-xl bg-muted/20"
                 />
                 <p className="text-xs text-muted-foreground">
                   Separe por linha, vírgula ou ponto e vírgula. Detectados: <strong>{estimatedContacts}</strong> de {maxBatchContacts}.
                 </p>
               </div>
 
-              <div className="grid gap-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm font-medium">Template aprovado</p>
-                  <Button type="button" variant="outline" size="sm" onClick={loadTemplates} disabled={isLoadingTemplates}>
-                    {isLoadingTemplates ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                    Atualizar
-                  </Button>
-                </div>
-                <select
-                  value={selectedTemplateId}
-                  onChange={(event) => setSelectedTemplateId(event.target.value)}
-                  className="h-10 rounded-md border border-input bg-background px-3 text-sm shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {isLoadingTemplates ? <option value="">Carregando templates...</option> : null}
-                  {!isLoadingTemplates && !templates.length ? <option value="">Nenhum template aprovado encontrado</option> : null}
-                  {templates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name} ({template.language}){template.unsupportedReason ? " - indisponível" : ""}
-                    </option>
-                  ))}
-                </select>
-                {selectedTemplate?.unsupportedReason ? (
-                  <p className="text-xs text-rose-600">{selectedTemplate.unsupportedReason}</p>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Templates compatíveis nesta etapa: <strong>{compatibleTemplates.length}</strong>
-                  </p>
-                )}
-              </div>
 
-              {selectedTemplate?.hasMediaHeader ? (
-                <div className="grid gap-2">
-                  <p className="text-sm font-medium">URL pública da mídia</p>
-                  <Input
-                    value={mediaUrl}
-                    onChange={(event) => setMediaUrl(event.target.value)}
-                    placeholder="https://seudominio.com/arquivo.jpg"
-                  />
-                </div>
-              ) : null}
-
-              {selectedTemplate?.headerVariables.length ? (
-                <VariableFields
-                  label="Variáveis do cabeçalho"
-                  variables={selectedTemplate.headerVariables}
-                  values={headerValues}
-                  onChange={setHeaderValues}
-                />
-              ) : null}
-
-              {selectedTemplate?.bodyVariables.length ? (
-                <VariableFields
-                  label="Variáveis do corpo"
-                  variables={selectedTemplate.bodyVariables}
-                  values={bodyValues}
-                  onChange={setBodyValues}
-                />
-              ) : null}
-
-              {selectedTemplate ? (
-                <div className="grid gap-2 rounded-md border bg-muted/30 p-4">
-                  <p className="text-sm font-medium">Prévia do corpo</p>
-                  <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-                    {preview || "Este template não possui texto de prévia."}
-                  </p>
-                </div>
-              ) : null}
-
-              <label className="flex items-start gap-3 rounded-md border p-4 text-sm">
+              <label className="flex items-start gap-3 text-xs leading-5">
                 <input
                   type="checkbox"
                   checked={consentConfirmed}
@@ -302,44 +202,48 @@ export function MassMessagePanel() {
               </div>
             ) : null}
 
-            <Button type="submit" disabled={submitDisabled}>
+            <Button type="submit" className="h-11 rounded-xl px-5" disabled={submitDisabled}>
               {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              {isSending ? "Enviando..." : "Disparar campanha"}
+              {isSending && !sendingTest ? "Enviando campanha..." : "Enviar campanha"}
             </Button>
           </form>
         </CardContent>
       </Card>
 
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Regras desta etapa</CardTitle>
-            <CardDescription>O disparo usa a Cloud API oficial da Meta.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm text-muted-foreground">
-            <p>1. Apenas templates aprovados ficam disponíveis para envio.</p>
-            <p>2. As variáveis valem para todos os contatos do lote.</p>
-            <p>3. Mídia precisa estar em URL HTTPS pública quando o template exigir.</p>
-            <p>4. A tela mostra aceite da API; confirmação de entrega depende dos webhooks.</p>
+      <div className="dispatch-aside space-y-4">
+        <Card className="overview-card overview-red relative isolate min-w-0 overflow-hidden rounded-2xl border-border/70 bg-card">
+          <CardHeader className="mb-0 border-0 bg-none p-5"><CardTitle>Teste individual</CardTitle><CardDescription>Confira a mensagem em um único número antes da campanha.</CardDescription></CardHeader>
+          <CardContent className="p-5 pt-0">
+            <form className="space-y-4" onSubmit={(event) => void handleSubmit(event, true)}>
+              <label className="block space-y-2"><span className="text-xs font-medium">Telefone de teste</span><Input value={testPhone} onChange={(event) => setTestPhone(event.target.value)} type="tel" inputMode="tel" pattern="[+]?[0-9]{10,15}" required placeholder="5511999999999" className="h-11 rounded-xl bg-muted/20" disabled={isSending} /><span className="block text-[11px] text-muted-foreground">Inclua o código do país e o DDD.</span></label>
+              <label className="flex items-start gap-2 text-xs leading-5 text-muted-foreground"><input type="checkbox" checked={testConsent} onChange={(event) => setTestConsent(event.target.checked)} disabled={isSending} className="mt-1 accent-red-600" />Tenho autorização para enviar a este número.</label>
+              <Button type="submit" className="h-11 w-full rounded-xl" disabled={isSending || !messageReady || !testConsent || !testPhone.trim()}>{sendingTest ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Send className="h-4 w-4" />}{sendingTest ? "Enviando teste…" : "Enviar teste"}</Button>
+              {testError && <p role="alert" className="text-xs text-destructive">{testError}</p>}
+              {testResult && <div role="status" className="rounded-xl border p-3 text-xs"><p className="mb-2 font-semibold">Resultado do teste</p>{testResult.contacts.map((contact) => <div key={contact.phone} className="space-y-2"><StatusPill status={contact.status} /><p className="text-muted-foreground">{contact.detail}</p></div>)}</div>}
+            </form>
           </CardContent>
         </Card>
+        <Card className="min-w-0 overflow-hidden rounded-2xl border-border/70 bg-card">
+          <CardHeader className="mb-0 border-0 bg-none p-5"><CardTitle>Prévia da mensagem</CardTitle><CardDescription>{mode === "text" ? "Texto que será enviado aos contatos." : "Identificação do template informado."}</CardDescription></CardHeader>
+          <CardContent className="p-5 pt-0"><div className="rounded-xl bg-muted/40 p-4"><div className="rounded-2xl rounded-tl-sm border border-border/50 bg-card p-4 text-sm leading-6 shadow-sm"><p className="whitespace-pre-wrap break-words">{preview || "Sua mensagem aparecerá aqui."}</p></div></div><p className="mt-3 text-[11px] leading-5 text-muted-foreground">{mode === "text" ? "O mesmo texto será enviado aos destinatários." : "O conteúdo final é o aprovado na Meta. As variáveis serão usadas em todo o lote."}</p></CardContent>
+        </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="overview-card overview-red relative isolate min-w-0 overflow-hidden rounded-2xl border-border/70 bg-card">
+          <CardHeader className="mb-0 border-0 bg-none p-5 sm:p-6">
             <CardTitle>Resultado do último envio</CardTitle>
             <CardDescription>Resumo rápido do lote processado.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-5 pt-0 sm:p-6 sm:pt-0">
             {result ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 gap-2">
                   <ResultMetric label="Total" value={String(result.total)} tone="slate" />
                   <ResultMetric label="Aceitas" value={String(result.accepted)} tone="emerald" />
                   <ResultMetric label="Incerto" value={String(result.uncertain)} tone="amber" />
                   <ResultMetric label="Falhas" value={String(result.failed)} tone="rose" />
                 </div>
 
-                <div className="space-y-2">
+                <div className="max-h-80 space-y-2 overflow-y-auto">
                   {result.contacts.map((contact) => (
                     <div key={`${contact.phone}-${contact.providerMessageId ?? contact.status}`} className="flex items-start justify-between gap-3 rounded-md border p-3 text-sm">
                       <div>
@@ -359,40 +263,6 @@ export function MassMessagePanel() {
             )}
           </CardContent>
         </Card>
-      </div>
-    </div>
-  );
-}
-
-function VariableFields({
-  label,
-  variables,
-  values,
-  onChange,
-}: {
-  label: string;
-  variables: string[];
-  values: string[];
-  onChange: (values: string[]) => void;
-}) {
-  return (
-    <div className="grid gap-3">
-      <p className="text-sm font-medium">{label}</p>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {variables.map((variable, index) => (
-          <div key={variable} className="grid gap-2">
-            <p className="text-xs font-medium text-muted-foreground">{`{{${variable}}}`}</p>
-            <Input
-              value={values[index] ?? ""}
-              onChange={(event) => {
-                const nextValues = [...values];
-                nextValues[index] = event.target.value;
-                onChange(nextValues);
-              }}
-              placeholder={`Valor para {{${variable}}}`}
-            />
-          </div>
-        ))}
       </div>
     </div>
   );
@@ -435,7 +305,7 @@ function ResultMetric({
   return (
     <div className={cn("rounded-md border px-3 py-3", toneClass)}>
       <p className="text-[11px] font-semibold uppercase tracking-[0.14em]">{label}</p>
-      <p className="mt-2 text-2xl font-bold">{value}</p>
+      <p className="mt-2 text-xl font-semibold">{value}</p>
     </div>
   );
 }

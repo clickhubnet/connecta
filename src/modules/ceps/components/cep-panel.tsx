@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { FileUp, MapPin, Plus, Search } from "lucide-react";
+import { CheckCircle2, FileUp, MapPin, Plus, Search, MapPinOff } from "lucide-react";
+import { MetricCard } from "@/components/cards/metric-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -105,35 +106,38 @@ export function CepPanel() {
   }
 
   return (
-    <div className="space-y-4">
-      {isAdmin ? <div className="grid gap-3 sm:grid-cols-3">
-        <Metric label="CEPs cadastrados" value={String(overview.data?.total ?? 0)} />
-        <Metric label="Com cobertura" value={String(overview.data?.available ?? 0)} />
-        <Metric label="Sem cobertura" value={String(overview.data?.unavailable ?? 0)} />
+    <div className="management-page coverage-page space-y-5">
+      <div className="management-toolbar flex items-center gap-3"><span className="management-heading-icon"><MapPin className="h-5 w-5" /></span><div><h2 className="text-sm font-semibold">Área de cobertura</h2><p className="mt-1 text-xs text-muted-foreground">Consulte endereços e gerencie a disponibilidade de atendimento.</p></div></div>
+      {overview.error && <p role="alert" className="text-sm text-destructive">{overview.error}</p>}
+      {message && <p role="status" className="rounded-xl border bg-card px-4 py-3 text-sm">{message}</p>}
+      {isAdmin ? <div className="grid gap-4 sm:grid-cols-3">
+        <MetricCard title="CEPs cadastrados" value={overview.loading ? "..." : String(overview.data?.total ?? 0)} helper="Endereços na base" icon={MapPin} />
+        <MetricCard title="Com cobertura" value={overview.loading ? "..." : String(overview.data?.available ?? 0)} helper="Disponíveis para atendimento" icon={CheckCircle2} tone="teal" />
+        <MetricCard title="Sem cobertura" value={overview.loading ? "..." : String(overview.data?.unavailable ?? 0)} helper="Sem disponibilidade cadastrada" icon={MapPinOff} tone="amber" />
       </div> : null}
 
-      <div className={`grid gap-4 ${isAdmin ? "xl:grid-cols-[1fr_1fr]" : "max-w-2xl"}`}>
-        <Card>
+      <div className={`grid gap-4 ${isAdmin ? "xl:grid-cols-[1.15fr_1fr]" : "max-w-2xl"}`}>
+        <Card className="management-surface">
           <CardHeader>
-            <CardTitle>Consultar CEP</CardTitle>
-            <CardDescription>Verificação na base oficial de cobertura importada</CardDescription>
+            <CardTitle className="text-sm font-semibold">Consultar CEP</CardTitle>
+            <CardDescription className="text-xs leading-relaxed">Confira a disponibilidade para o endereço do cliente.</CardDescription>
           </CardHeader>
           <CardContent>
             <form className="flex gap-2" onSubmit={handleSearch}>
-              <Input name="cep" placeholder="00000-000" required />
+              <Input aria-label="CEP para consulta" name="cep" placeholder="Digite o CEP: 00000-000" inputMode="numeric" required />
               <Button disabled={loading} type="submit" aria-label="Consultar CEP" title="Consultar CEP">
-                <Search className="h-4 w-4" aria-hidden="true" />
+                <Search className="h-4 w-4" aria-hidden="true" />Consultar
               </Button>
             </form>
-            {message ? <p className="mt-4 text-sm text-muted-foreground">{message}</p> : null}
-            {result ? <CepResult result={result} /> : null}
+
+            {result ? <div className="mt-4"><CepResult result={result} /></div> : <div className="mt-5 flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20 p-6 text-center"><MapPin className="h-7 w-7 text-primary/60" /><p className="text-xs text-muted-foreground">Informe um CEP para consultar o endereço e a cobertura.</p></div>}
           </CardContent>
         </Card>
 
-        {isAdmin ? <Card>
+        {isAdmin ? <Card className="management-surface">
           <CardHeader>
-            <CardTitle>Cadastrar Cobertura</CardTitle>
-            <CardDescription>Inclusao ou atualizacao pontual de CEP</CardDescription>
+            <CardTitle className="text-sm font-semibold">Cadastrar cobertura</CardTitle>
+            <CardDescription className="text-xs leading-relaxed">Adicione ou atualize um endereço na sua base.</CardDescription>
           </CardHeader>
           <CardContent>
             <form className="space-y-3" onSubmit={handleManualCreate}>
@@ -157,14 +161,14 @@ export function CepPanel() {
         </Card> : null}
       </div>
 
-      {isAdmin ? <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <Card>
+      {isAdmin ? <div className="grid gap-4 xl:grid-cols-[1.15fr_1fr]">
+        <Card className="management-surface">
           <CardHeader>
-            <CardTitle>Importar Base</CardTitle>
-            <CardDescription>Arquivos XLSX ou CSV</CardDescription>
+            <CardTitle className="text-sm font-semibold">Importar base</CardTitle>
+            <CardDescription className="text-xs leading-relaxed">Arquivos XLSX ou CSV</CardDescription>
           </CardHeader>
           <CardContent>
-            <form className="flex flex-col gap-3 sm:flex-row" onSubmit={handleImport}>
+            <form className="flex flex-col gap-4 rounded-xl border border-dashed border-primary/25 bg-primary/[.025] p-5" onSubmit={handleImport}>
               <Input accept=".xlsx,.xls,.csv" name="file" required type="file" />
               <Button disabled={loading} type="submit">
                 <FileUp className="h-4 w-4" aria-hidden="true" />
@@ -174,17 +178,17 @@ export function CepPanel() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="management-surface">
           <CardHeader>
-            <CardTitle>Cidades com Cobertura</CardTitle>
-            <CardDescription>Maiores concentracoes na base atual</CardDescription>
+            <CardTitle className="text-sm font-semibold">Cidades com cobertura</CardTitle>
+            <CardDescription className="text-xs leading-relaxed">Distribuição dos endereços na base atual</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {overview.data?.cities.length ? (
               overview.data.cities.map((city) => (
-                <div key={`${city.city}-${city.state}`} className="flex items-center justify-between rounded-md border p-3 text-sm">
+                <div key={`${city.city}-${city.state}`} className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 p-3 text-sm">
                   <span>{[city.city, city.state].filter(Boolean).join(" / ")}</span>
-                  <strong>{city.count}</strong>
+                  <span className="rounded-lg bg-primary/5 px-2 py-1 text-xs font-semibold text-primary tabular-nums">{city.count} CEPs</span>
                 </div>
               ))
             ) : (
@@ -194,16 +198,16 @@ export function CepPanel() {
         </Card>
       </div> : null}
 
-      {isAdmin ? <Card>
+      {isAdmin ? <Card className="management-surface">
         <CardHeader>
-          <CardTitle>Ultimos CEPs Importados</CardTitle>
+          <CardTitle className="text-sm font-semibold">Últimos CEPs importados</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {overview.data?.recent.length ? (
               overview.data.recent.map((cep) => <CepResult key={cep.id ?? cep.cep} result={cep} compact />)
             ) : (
-              <EmptyState text="Sem importacoes registradas" />
+              <EmptyState text="Sem importações registradas" />
             )}
           </div>
         </CardContent>
@@ -212,32 +216,23 @@ export function CepPanel() {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border bg-background p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-semibold">{value}</p>
-    </div>
-  );
-}
-
 function CepResult({ result, compact = false }: { result: NonNullable<CepItem>; compact?: boolean }) {
   return (
-    <div className="rounded-md border p-4 text-sm">
+    <div className="rounded-xl border border-border/70 bg-card p-4 text-sm">
       <p className="flex items-center gap-2 font-medium">
         <MapPin className="h-4 w-4" aria-hidden="true" />
         {result.cep}
       </p>
       <p className="mt-2 text-muted-foreground">{result.street || "Sem logradouro"}</p>
       <p className="text-muted-foreground">
-        {[result.neighborhood, result.city, result.state].filter(Boolean).join(" - ") || "Sem localizacao"}
+        {[result.neighborhood, result.city, result.state].filter(Boolean).join(" - ") || "Sem localização"}
       </p>
-      <p className="mt-2 font-medium">{result.available ? "Com cobertura" : "Sem cobertura"}</p>
+      <p className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${result.available ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{result.available ? "Com cobertura" : "Sem cobertura"}</p>
       {!compact && result.source ? <p className="text-xs text-muted-foreground">Origem: {result.source}</p> : null}
     </div>
   );
 }
 
 function EmptyState({ text }: { text: string }) {
-  return <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">{text}</p>;
+  return <p className="col-span-full rounded-xl border border-dashed bg-muted/20 p-8 text-center text-sm text-muted-foreground">{text}</p>;
 }

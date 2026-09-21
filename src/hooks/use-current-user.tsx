@@ -6,6 +6,7 @@ import { useApiResource } from "@/hooks/use-api-resource";
 export type CurrentUser = {
   id: string;
   name: string;
+  title?: string | null;
   email: string;
   role: "ADMIN" | "EMPLOYEE";
   status: "ACTIVE" | "BLOCKED";

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { Moon, Sun, ChevronRight, LogOut } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Moon, Sun, LogOut } from "lucide-react";
+import Link from "next/link";
 import { useTheme } from "next-themes";
 import { usePathname, useRouter } from "next/navigation";
 import { navigationItems } from "@/config/navigation";
@@ -21,6 +22,15 @@ export function Header({ title }: HeaderProps) {
   const { data: user } = currentUser;
   const isDark = theme === "dark";
   const appliedPreference = useRef<string | null>(null);
+  const [greeting, setGreeting] = useState("");
+  const isDashboard = pathname === "/dashboard";
+
+  useEffect(() => {
+    const updateGreeting = () => setGreeting(new Date().getHours() < 12 ? "Bom dia" : "Boa tarde");
+    updateGreeting();
+    const interval = window.setInterval(updateGreeting, 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -52,36 +62,39 @@ export function Header({ title }: HeaderProps) {
   }
 
   return (
-    <header className="sticky top-0 z-30 border-b border-primary/15 bg-card/95 shadow-sm backdrop-blur-xl">
-      <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-30 border-b border-border/70 bg-card/95 backdrop-blur-xl">
+      <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-3">
-          {PageIcon ? <span className="hidden h-9 w-9 shrink-0 place-items-center rounded-xl border border-primary/15 bg-primary/10 text-primary md:grid"><PageIcon className="h-4 w-4" /></span> : null}
+          {PageIcon ? <span className="hidden h-10 w-10 shrink-0 place-items-center rounded-xl border border-border/70 bg-background text-primary md:grid"><PageIcon className="h-[18px] w-[18px]" strokeWidth={1.7} aria-hidden="true" /></span> : null}
           <div className="min-w-0">
-            <div className="flex items-center gap-2 text-sm"><span className="hidden text-muted-foreground lg:inline">Workspace</span><ChevronRight className="hidden h-3.5 w-3.5 text-muted-foreground/50 lg:block" /><h1 className="truncate font-bold">{title}</h1></div>
+            {isDashboard ? <h1 className="text-sm font-semibold leading-snug tracking-tight sm:text-base">
+              <span className="block truncate">{greeting || "Olá"}{user?.name ? ` ${user.name}` : ""},</span>
+              <span className="block text-xs font-normal text-muted-foreground">bem-vindo(a) de volta!</span>
+            </h1> : <>
+              <p className="mb-0.5 text-[9px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">Central de gestão</p>
+              <h1 className="truncate text-base font-semibold tracking-tight">{title}</h1>
+            </>}
             {user?.id === "visual-preview" ? <p className="mt-1 text-[10px] font-medium text-primary">Prévia local · dados demonstrativos</p> : null}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon"
             type="button"
-            aria-label="Alternar tema"
-            title="Alternar tema"
+            className="rounded-xl text-muted-foreground"
+            aria-label={isDark ? "Ativar tema claro" : "Ativar tema escuro"}
+            title={isDark ? "Ativar tema claro" : "Ativar tema escuro"}
             onClick={() => void toggleTheme()}
           >
             {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </Button>
-          <div className="hidden text-right sm:block">
-            <p className="text-sm font-medium">{user?.name ?? "Usuário"}</p>
-            <button className="text-xs text-muted-foreground hover:text-foreground" onClick={logout} type="button">
-              Sair
-            </button>
-          </div>
-          <div className="hidden h-9 w-9 place-items-center rounded-full border border-primary/15 bg-primary/10 text-sm font-bold text-primary sm:grid">
-            {(user?.name ?? "A").slice(0, 1).toUpperCase()}
-          </div>
-          <Button variant="ghost" size="icon" className="sm:hidden" aria-label="Sair" onClick={logout}><LogOut className="h-4 w-4" /></Button>
+          <span aria-hidden="true" className="h-7 w-px bg-border" />
+          <Link href="/configuracoes" aria-label="Abrir perfil e configurações" className="flex min-w-0 items-center gap-2.5 rounded-xl p-1.5 transition-colors hover:bg-accent">
+            <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/10 text-xs font-bold text-primary">{user?.avatarUrl ? <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" /> : (user?.name ?? "A").trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>
+            <span className="hidden min-w-0 sm:block"><span className="block max-w-36 truncate text-xs font-semibold">{user?.name ?? "Sua conta"}</span><span className="mt-0.5 block text-[10px] text-muted-foreground">{user?.title || (user?.role === "ADMIN" ? "Administrador" : "Funcionário")}</span></span>
+          </Link>
+          <Button variant="ghost" size="icon" type="button" className="rounded-xl text-muted-foreground hover:bg-red-50 hover:text-red-700 dark:hover:bg-red-950" aria-label="Sair da conta" title="Sair da conta" onClick={logout}><LogOut className="h-4 w-4" /></Button>
         </div>
       </div>
     </header>

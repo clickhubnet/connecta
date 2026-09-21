@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ApiResult } from "@/types/api";
 
 const inFlightRequests = new Map<string, Promise<{ response: Response; body: string }>>();
@@ -15,16 +15,21 @@ function requestOnce(url: string) {
   return request;
 }
 
-export function useApiResource<T>(url: string) {
+export function useApiResource<T>(url: string, enabled = true) {
+  const hasData = useRef(false);
+  const requestVersion = useRef(0);
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    if (!enabled) return;
+    const version = ++requestVersion.current;
+    setLoading(!hasData.current);
     setError(null);
     try {
       const { response, body } = await requestOnce(url);
+      if (version !== requestVersion.current) return;
 
       if (!body.trim()) {
         setError(response.ok ? "O servidor retornou uma resposta vazia." : `Falha na consulta (${response.status}).`);
@@ -40,16 +45,18 @@ export function useApiResource<T>(url: string) {
       }
 
       if (response.ok && result.status === "success") {
+        hasData.current = true;
         setData(result.data);
       } else {
         setError(result.message || `Falha na consulta (${response.status}).`);
       }
     } catch (requestError) {
+      if (version !== requestVersion.current) return;
       setError(requestError instanceof Error ? requestError.message : "Não foi possível consultar o servidor.");
     } finally {
-      setLoading(false);
+      if (version === requestVersion.current) setLoading(false);
     }
-  }, [url]);
+  }, [url, enabled]);
 
   useEffect(() => {
     void refresh();

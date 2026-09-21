@@ -1,15 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -19,10 +14,10 @@ import {
   CalendarDays,
   Download,
   FileText,
-  UserSquare2,
+  Users, TrendingUp, Receipt, MessageCircleMore, ListChecks, Trophy, Layers3, RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useApiResource } from "@/hooks/use-api-resource";
 
@@ -65,7 +60,8 @@ const periodOptions = [
   { value: "custom", label: "Período" },
 ];
 
-const chartColors = ["#0ea5e9", "#2563eb", "#14b8a6", "#f59e0b", "#8b5cf6", "#f97316"];
+const chartColors = ["#d71920", "#0d9488", "#4f46e5", "#d97706", "#737373", "#991b1b"];
+const tooltipStyle = { borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontSize: 12 };
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -185,391 +181,67 @@ export function OverviewPanel() {
 
   return (
     <div className="space-y-5">
-      <section className="overflow-hidden rounded-[28px] border border-sky-100 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_36%),linear-gradient(135deg,_#ffffff,_#eff6ff_52%,_#ecfeff)] p-6 shadow-[0_24px_80px_-40px_rgba(2,132,199,0.45)]">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-          <div className="max-w-3xl">
-            <p className="text-sm font-medium uppercase tracking-[0.24em] text-sky-700">Visão Geral</p>
-            <h2 className="mt-2 text-3xl font-semibold text-slate-950">Panorama completo da operação comercial</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              Distribuição de leads por funcionário, planos vendidos, status, conversas finalizadas pela Cris, assumidas, tarefas e despesas em um único lugar.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" asChild>
-              <a href={exportUrl}>
-                <Download className="h-4 w-4" />
-                Exportar Excel
-              </a>
-            </Button>
-            <Button type="button" onClick={exportPdf} disabled={!data}>
-              <FileText className="h-4 w-4" />
-              Exportar PDF
-            </Button>
-          </div>
-        </div>
-
-        <div className="mt-6 flex flex-col gap-4 rounded-3xl border border-white/60 bg-white/80 p-4 backdrop-blur md:p-5">
-          <div className="flex flex-wrap gap-2">
-            {periodOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                className={`rounded-full px-4 py-2 text-sm transition ${period === option.value ? "bg-slate-950 text-white shadow-lg" : "bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50"}`}
-                onClick={() => setPeriod(option.value)}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] xl:grid-cols-[180px_180px_auto]">
-            <Input type="date" disabled={!customPeriod} value={from} onChange={(event) => setFrom(event.target.value)} />
-            <Input type="date" disabled={!customPeriod} value={to} onChange={(event) => setTo(event.target.value)} />
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={applyFilters}>
-                <CalendarDays className="h-4 w-4" />
-                Aplicar filtro
-              </Button>
-              <Button type="button" variant="ghost" onClick={clearFilters}>
-                Limpar
-              </Button>
-            </div>
-          </div>
-
-          <p className="text-xs text-slate-500">
-            {data?.range.label ?? "Carregando período selecionado..."}
-          </p>
+      <form aria-label="Filtros da visão geral" className="flex flex-wrap items-end gap-3 rounded-2xl border border-border/70 bg-card p-4 shadow-sm" onSubmit={(event) => { event.preventDefault(); applyFilters(); }}>
+        <label className="min-w-40 flex-1 space-y-1.5 sm:max-w-48"><span className="flex items-center gap-1.5 text-xs font-medium"><CalendarDays className="h-3.5 w-3.5 text-primary" />Período</span><select value={period} onChange={(event) => setPeriod(event.target.value)} className="h-10 w-full rounded-xl border bg-background px-3 text-sm">{periodOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+        {customPeriod && <><label className="space-y-1.5"><span className="text-xs font-medium">De</span><Input className="rounded-xl" type="date" required max={to || undefined} value={from} onChange={(event) => setFrom(event.target.value)} /></label><label className="space-y-1.5"><span className="text-xs font-medium">Até</span><Input className="rounded-xl" type="date" required min={from || undefined} value={to} onChange={(event) => setTo(event.target.value)} /></label></>}
+        <Button type="submit" className="rounded-xl">Aplicar</Button><Button type="button" variant="ghost" className="rounded-xl text-muted-foreground" onClick={clearFilters}><RotateCcw className="h-3.5 w-3.5" />Limpar</Button>
+        <div className="flex flex-wrap gap-2 sm:ml-auto"><Button type="button" variant="outline" className="rounded-xl" asChild><a href={exportUrl}><Download className="h-4 w-4" />Excel</a></Button><Button type="button" variant="outline" className="rounded-xl" onClick={exportPdf} disabled={!data}><FileText className="h-4 w-4" />PDF</Button></div>
+      </form>
+      {overview.error && <p role="alert" className="rounded-xl border border-destructive/20 bg-card p-4 text-sm text-destructive">{overview.error}</p>}
+      <p aria-live="polite" className="px-1 text-xs text-muted-foreground">{overview.loading ? "Atualizando relatório…" : data?.range.label ?? "Relatório indisponível"}</p>
+      <section aria-label="Leitura da operação" className="rounded-2xl border border-border/70 bg-card px-5 py-5 sm:px-6">
+        <div className="mb-5 flex flex-wrap items-baseline justify-between gap-2"><h2 className="text-sm font-semibold">Leitura da operação</h2><span className="text-xs text-muted-foreground">Atendimento e produtividade no período</span></div>
+        <div className="grid gap-5 md:grid-cols-3 md:gap-0 md:divide-x md:divide-border/70">
+          {[
+            { label: "Conversas finalizadas", value: data?.summary.conversationsFinished, detail: "Atendimentos encerrados pelo chatbot", icon: MessageCircleMore, tone: "text-primary" },
+            { label: "Conversas assumidas", value: data?.summary.conversationsAssumed, detail: "Atendimentos assumidos pela equipe", icon: Users, tone: "text-indigo-600 dark:text-indigo-300" },
+            { label: "Tarefas concluídas", value: data?.summary.tasksCompleted, detail: "Atividades finalizadas no período", icon: ListChecks, tone: "text-teal-700 dark:text-teal-300" },
+          ].map(({ label, value, detail, icon: Icon, tone }, index) => <div key={label} className={index ? "md:pl-6" : "md:pr-6"}>
+            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><Icon aria-hidden="true" className={`h-4 w-4 ${tone}`} />{label}</div>
+            <p className="mt-2 text-xl font-semibold tracking-tight tabular-nums">{overview.loading ? "—" : formatNumber(value)}</p>
+            <p className="mt-1 text-[11px] text-muted-foreground">{detail}</p>
+          </div>)}
         </div>
       </section>
-
-      {overview.error ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{overview.error}</div>
-      ) : null}
-
-      <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <Card className="overflow-hidden rounded-[24px] border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle>Resumo executivo do período</CardTitle>
-            <CardDescription>Comparativo das principais métricas do relatório filtrado.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[320px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={[
-                    { name: "Leads criados", value: data?.summary.leadsCreated ?? 0 },
-                    { name: "Leads ganhos", value: data?.summary.leadsWon ?? 0 },
-                    { name: "Conversas finalizadas", value: data?.summary.conversationsFinished ?? 0 },
-                    { name: "Conversas assumidas", value: data?.summary.conversationsAssumed ?? 0 },
-                    { name: "Tarefas concluídas", value: data?.summary.tasksCompleted ?? 0 },
-                  ]}
-                  layout="vertical"
-                  margin={{ left: 40, right: 12, top: 10, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="#e2e8f0" />
-                  <XAxis type="number" tickLine={false} axisLine={false} fontSize={12} />
-                  <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={150} fontSize={12} />
-                  <Tooltip />
-                  <Bar dataKey="value" radius={[0, 14, 14, 0]}>
-                    {[
-                      "#0ea5e9",
-                      "#14b8a6",
-                      "#8b5cf6",
-                      "#c084fc",
-                      "#f59e0b",
-                    ].map((color, index) => (
-                      <Cell key={color} fill={color} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden rounded-[24px] border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle>Receita x despesas</CardTitle>
-            <CardDescription>Relatório financeiro do período, incluindo vendido, pago e pendente.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[320px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={[
-                    { name: "Receita vendida", value: data?.summary.revenue ?? 0, fill: "#14b8a6" },
-                    { name: "Despesas totais", value: data?.summary.expensesTotal ?? 0, fill: "#f59e0b" },
-                    { name: "Despesas pagas", value: data?.summary.expensesPaid ?? 0, fill: "#2563eb" },
-                    { name: "Despesas pendentes", value: data?.summary.expensesPending ?? 0, fill: "#f97316" },
-                    { name: "Despesas atrasadas", value: data?.summary.expensesOverdue ?? 0, fill: "#ef4444" },
-                  ]}
-                  margin={{ left: 8, right: 8, top: 10, bottom: 12 }}
-                >
-                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="name" tickLine={false} axisLine={false} fontSize={11} interval={0} angle={-12} textAnchor="end" height={72} />
-                  <YAxis tickLine={false} axisLine={false} fontSize={12} />
-                  <Tooltip formatter={(value) => currency.format(Number(value ?? 0))} />
-                  <Bar dataKey="value" radius={[14, 14, 0, 0]}>
-                    {[
-                      { key: "Receita vendida", fill: "#14b8a6" },
-                      { key: "Despesas totais", fill: "#f59e0b" },
-                      { key: "Despesas pagas", fill: "#2563eb" },
-                      { key: "Despesas pendentes", fill: "#f97316" },
-                      { key: "Despesas atrasadas", fill: "#ef4444" },
-                    ].map((entry) => (
-                      <Cell key={entry.key} fill={entry.fill} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1.55fr_1fr]">
-        <Card className="overflow-hidden rounded-[24px] border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle>Evolução da operação</CardTitle>
-            <CardDescription>Leads, vendas, conversas e tarefas distribuídos ao longo do período filtrado.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[340px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data?.timeline ?? []} margin={{ left: -18, right: 10, top: 20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="leadsGradient" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.35} />
-                      <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0.02} />
-                    </linearGradient>
-                    <linearGradient id="salesGradient" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.35} />
-                      <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} />
-                  <YAxis tickLine={false} axisLine={false} fontSize={12} />
-                  <Tooltip />
-                  <Area type="monotone" dataKey="leads" stroke="#0ea5e9" strokeWidth={3} fill="url(#leadsGradient)" />
-                  <Area type="monotone" dataKey="sales" stroke="#14b8a6" strokeWidth={3} fill="url(#salesGradient)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="overflow-hidden rounded-[24px] border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle>Status dos leads</CardTitle>
-            <CardDescription>Leitura rápida do funil no período selecionado.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[260px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={data?.leadStatuses ?? []} dataKey="count" nameKey="label" innerRadius={62} outerRadius={98} paddingAngle={3}>
-                    {(data?.leadStatuses ?? []).map((entry, index) => (
-                      <Cell key={entry.status} fill={chartColors[index % chartColors.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="grid gap-2">
-              {(data?.leadStatuses ?? []).map((item, index) => (
-                <div key={item.status} className="flex items-center justify-between rounded-2xl border border-slate-200 px-3 py-2 text-sm">
-                  <span className="flex items-center gap-2 text-slate-600">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: chartColors[index % chartColors.length] }} />
-                    {item.label}
-                  </span>
-                  <strong className="text-slate-950">{item.count}</strong>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <Card className="rounded-[24px] border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle>Distribuição de leads por funcionário</CardTitle>
-            <CardDescription>Mostra quem está recebendo mais leads e quem já converteu melhor.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[340px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data?.leadOwners ?? []} layout="vertical" margin={{ left: 30, right: 10, top: 10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="4 4" horizontal={false} stroke="#e2e8f0" />
-                  <XAxis type="number" tickLine={false} axisLine={false} fontSize={12} />
-                  <YAxis type="category" dataKey="userName" tickLine={false} axisLine={false} width={120} fontSize={12} />
-                  <Tooltip />
-                  <Bar dataKey="totalLeads" radius={[0, 12, 12, 0]} fill="#2563eb" />
-                  <Bar dataKey="wonLeads" radius={[0, 12, 12, 0]} fill="#14b8a6" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-[24px] border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle>Conversas e operação</CardTitle>
-            <CardDescription>Fluxo da Cris, operação humana e custos em um resumo visual.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-3">
-              {(data?.conversationBreakdown ?? []).map((item, index) => (
-                <div key={item.key} className="rounded-2xl border border-slate-200 p-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-600">{item.label}</span>
-                    <strong className="text-slate-950">{item.count}</strong>
-                  </div>
-                  <div className="mt-3 h-2 rounded-full bg-slate-100">
-                    <div
-                      className="h-2 rounded-full"
-                      style={{
-                        width: `${Math.min(100, item.count * 8)}%`,
-                        backgroundColor: chartColors[index % chartColors.length],
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="rounded-3xl bg-slate-950 p-4 text-white">
-              <p className="text-xs uppercase tracking-[0.22em] text-sky-200">Despesas</p>
-              <p className="mt-3 text-3xl font-semibold">{currency.format(data?.summary.expensesTotal ?? 0)}</p>
-              <div className="mt-4 grid gap-2 text-sm text-slate-300">
-                <span>Pagas: {currency.format(data?.summary.expensesPaid ?? 0)}</span>
-                <span>Pendentes: {currency.format(data?.summary.expensesPending ?? 0)}</span>
-                <span>Atrasadas: {currency.format(data?.summary.expensesOverdue ?? 0)}</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <Card className="rounded-[24px] border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle>Planos vendidos</CardTitle>
-            <CardDescription>Planos com mais vendas e maior valor fechado.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {(data?.planSales ?? []).length ? (
-              (data?.planSales ?? []).map((item, index) => (
-                <div key={item.planName} className="rounded-2xl border border-slate-200 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate font-medium text-slate-950">{item.planName}</p>
-                      <p className="text-xs text-slate-500">{item.count} venda(s)</p>
-                    </div>
-                    <strong className="text-sm text-slate-950">{currency.format(item.totalValue)}</strong>
-                  </div>
-                  <div className="mt-3 h-2 rounded-full bg-slate-100">
-                    <div
-                      className="h-2 rounded-full"
-                      style={{
-                        width: `${Math.min(100, item.count * 14)}%`,
-                        backgroundColor: chartColors[index % chartColors.length],
-                      }}
-                    />
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
-                Sem planos vendidos no período filtrado.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-[24px] border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle>Performance de tarefas</CardTitle>
-            <CardDescription>Distribuição das tarefas concluídas e pendentes por responsável.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[340px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data?.taskOwners ?? []} margin={{ left: 0, right: 10, top: 12, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="userName" tickLine={false} axisLine={false} fontSize={11} interval={0} angle={-10} textAnchor="end" height={60} />
-                  <YAxis tickLine={false} axisLine={false} fontSize={12} />
-                  <Tooltip />
-                  <Bar dataKey="completed" stackId="tasks" fill="#14b8a6" radius={[8, 8, 0, 0]} />
-                  <Bar dataKey="pending" stackId="tasks" fill="#f59e0b" radius={[8, 8, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
-
-      <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <Card className="rounded-[24px] border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle>Equipe atribuída</CardTitle>
-            <CardDescription>Quem recebeu mais leads e o valor gerado por cada carteira.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {(data?.leadOwners ?? []).length ? (
-              (data?.leadOwners ?? []).map((item, index) => (
-                <div key={item.userId} className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl text-white" style={{ backgroundColor: chartColors[index % chartColors.length] }}>
-                        <UserSquare2 className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-slate-950">{item.userName}</p>
-                        <p className="text-xs text-slate-500">{item.totalLeads} leads • {item.wonLeads} ganhos • {item.openLeads} em aberto</p>
-                      </div>
-                    </div>
-                  </div>
-                  <strong className="text-sm text-slate-950">{currency.format(item.revenue)}</strong>
-                </div>
-              ))
-            ) : (
-              <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
-                Ainda não há leads atribuídos no período filtrado.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-[24px] border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle>Despesas por status</CardTitle>
-            <CardDescription>Volume financeiro separado entre pago, pendente e atrasado.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[320px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data?.expenseBreakdown ?? []} margin={{ left: 10, right: 10, top: 20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} />
-                  <YAxis tickLine={false} axisLine={false} fontSize={12} />
-                  <Tooltip formatter={(value) => currency.format(Number(value ?? 0))} />
-                  <Bar dataKey="totalAmount" radius={[12, 12, 0, 0]}>
-                    {(data?.expenseBreakdown ?? []).map((entry, index) => (
-                      <Cell key={entry.status} fill={chartColors[index % chartColors.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </section>
+      <div className="grid items-stretch gap-5 xl:grid-cols-12">
+        <ReportCard title="Evolução da operação" description="Leads e vendas ao longo do período" icon={TrendingUp} className="xl:col-span-8" tone="red">
+          {data?.timeline.length ? <><div className="h-64 sm:h-72"><ResponsiveContainer width="100%" height="100%"><AreaChart accessibilityLayer data={data.timeline} margin={{ left: -20, right: 8, top: 10 }}>
+            <defs><linearGradient id="overview-leads" x1="0" y1="0" x2="0" y2="1"><stop stopColor="#d71920" stopOpacity={0.2} /><stop offset="100%" stopColor="#d71920" stopOpacity={0} /></linearGradient></defs>
+            <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 6" vertical={false} /><XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} minTickGap={24} /><YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={11} /><Tooltip contentStyle={tooltipStyle} />
+            <Area name="Leads" dataKey="leads" type="monotone" stroke="#d71920" strokeWidth={2.5} fill="url(#overview-leads)" isAnimationActive={false} /><Area name="Vendas" dataKey="sales" type="monotone" stroke="#0d9488" strokeWidth={2.5} fill="transparent" isAnimationActive={false} />
+          </AreaChart></ResponsiveContainer></div><div className="mt-4 flex gap-5 border-t pt-4 text-xs text-muted-foreground"><span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-primary" />Leads</span><span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-teal-600" />Vendas</span></div></> : <EmptyReport loading={overview.loading} />}
+        </ReportCard>
+        <ReportCard title="Status dos leads" description="Distribuição por etapa do funil" icon={Layers3} className="xl:col-span-4" tone="teal">
+          <div className="space-y-4">{data?.leadStatuses.length ? data.leadStatuses.map((item, index) => <ReportBar key={item.status} label={item.label} value={item.count} total={data.leadStatuses.reduce((sum, row) => sum + row.count, 0)} color={chartColors[index % chartColors.length]} />) : <EmptyReport loading={overview.loading} />}</div>
+        </ReportCard>
+        <ReportCard title="Desempenho da equipe" description="Leads, vendas e faturamento por responsável" icon={Users} className="xl:col-span-8" tone="indigo">
+          <div className="space-y-3">{data?.leadOwners.length ? data.leadOwners.map((item) => <div key={item.userId} className="flex flex-wrap items-center gap-3 rounded-xl border border-border/60 p-4"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-indigo-50 text-xs font-semibold text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">{item.userName.split(" ").filter(Boolean).slice(0, 2).map((word) => word[0]).join("")}</span><div className="min-w-0 flex-1"><p className="text-sm font-semibold">{item.userName}</p><p className="mt-1 text-xs text-muted-foreground">{item.totalLeads} leads · {item.wonLeads} vendas · {item.openLeads} em aberto</p></div><strong className="text-sm font-semibold tabular-nums">{currency.format(item.revenue)}</strong></div>) : <EmptyReport loading={overview.loading} />}</div>
+        </ReportCard>
+        <ReportCard title="Planos vendidos" description="Ranking de vendas por plano" icon={Trophy} className="xl:col-span-4" tone="amber">
+          <div className="space-y-4">{data?.planSales.length ? [...data.planSales].sort((a,b) => b.count-a.count).map((item,index) => <div key={item.planName} className="rounded-xl border border-border/60 p-3"><div className="mb-3 flex items-center justify-between gap-2"><p className="text-xs font-semibold">{index+1}. {item.planName}</p><strong className="text-xs font-semibold tabular-nums">{currency.format(item.totalValue)}</strong></div><ReportBar label="Vendas" value={item.count} total={Math.max(1,...data.planSales.map((row)=>row.count))} color="#d71920" /></div>) : <EmptyReport loading={overview.loading} />}</div>
+        </ReportCard>
+        <ReportCard title="Atendimento" description="Chatbot e equipe no período selecionado" icon={MessageCircleMore} className="xl:col-span-4" tone="red">
+          <div className="space-y-5">{data?.conversationBreakdown.length ? data.conversationBreakdown.map((item,index) => <ReportBar key={item.key} label={item.label} value={item.count} total={Math.max(1,...data.conversationBreakdown.map((row)=>row.count))} color={chartColors[index % chartColors.length]} />) : <EmptyReport loading={overview.loading} />}</div>
+        </ReportCard>
+        <ReportCard title="Tarefas da equipe" description="Conclusões e pendências por responsável" icon={ListChecks} className="xl:col-span-4" tone="teal">
+          <p className="mb-5 text-xs text-muted-foreground"><strong className="mr-2 text-xl font-semibold text-foreground">{overview.loading ? "—" : formatNumber(data?.summary.tasksCompleted)}</strong>concluídas no período</p><div className="space-y-4">{data?.taskOwners.length ? data.taskOwners.map((item) => <div key={item.userId}><ReportBar label={item.userName} value={item.completed} total={item.total} color="#0d9488" /><p className="mt-1 text-[11px] text-muted-foreground">{item.completed} concluídas · {item.pending} pendentes</p></div>) : <EmptyReport loading={overview.loading} />}</div>
+        </ReportCard>
+        <ReportCard title="Resumo financeiro" description="Vendas e despesas no período" icon={Receipt} className="xl:col-span-4" tone="amber">
+          <div className="space-y-3">{[
+            ["Faturamento", data?.summary.revenue], ["Despesas totais", data?.summary.expensesTotal], ["Pagas", data?.summary.expensesPaid], ["Pendentes", data?.summary.expensesPending], ["Atrasadas", data?.summary.expensesOverdue],
+          ].map(([label,value])=><div key={String(label)} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/60 px-3 py-3"><span className="text-xs text-muted-foreground">{label}</span><strong className="text-sm font-semibold tabular-nums">{overview.loading ? "—" : currency.format(Number(value ?? 0))}</strong></div>)}</div>
+        </ReportCard>
+      </div>
     </div>
   );
+}
+
+function ReportCard({ title, description, icon: Icon, children, className, tone }: { title: string; description: string; icon: typeof Users; children: ReactNode; className: string; tone: string }) {
+  return <Card className={`overview-card overview-${tone} relative isolate min-w-0 overflow-hidden rounded-2xl border-border/70 bg-card p-5 sm:p-6 ${className}`}><div className="mb-6 flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary"><Icon className="h-[18px] w-[18px]" strokeWidth={1.7} aria-hidden="true" /></span><div><h2 className="text-sm font-bold text-foreground">{title}</h2><p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p></div></div>{children}</Card>;
+}
+function EmptyReport({ loading }: { loading: boolean }) { return <p role="status" className="grid min-h-32 place-items-center rounded-xl bg-muted/30 p-4 text-center text-sm text-muted-foreground">{loading ? "Carregando informações…" : "Sem registros no período selecionado."}</p>; }
+function ReportBar({ label, value, total, color }: { label: string; value: number; total: number; color: string }) {
+  return <div><div className="mb-2 flex items-center justify-between gap-3 text-xs"><span className="font-medium">{label}</span><strong className="font-semibold tabular-nums">{formatNumber(value)}</strong></div><div aria-hidden="true" className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full" style={{ width: `${Math.min(100, value / Math.max(1,total)*100)}%`, background: color }} /></div></div>;
 }
 
 function formatNumber(value?: number) {

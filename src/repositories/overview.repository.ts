@@ -243,7 +243,7 @@ function buildLeadOwners(
 
 function buildConversationBreakdown(conversations: Array<{ state: string; ownerUserId: string | null }>) {
   return [
-    { key: "bot", label: "Cris ativa", count: conversations.filter((conversation) => !conversation.ownerUserId).length },
+    { key: "bot", label: "Sofia ativa", count: conversations.filter((conversation) => !conversation.ownerUserId).length },
     { key: "assumed", label: "Assumidas", count: conversations.filter((conversation) => Boolean(conversation.ownerUserId)).length },
     { key: "finished", label: "Finalizadas", count: conversations.filter((conversation) => conversation.state === "FINISHED").length },
     { key: "unavailable", label: "Sem viabilidade", count: conversations.filter((conversation) => conversation.state === "FINISHED_UNAVAILABLE").length },

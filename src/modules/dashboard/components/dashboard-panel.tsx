@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { RotateCcw, Search, ArrowUpRight, CalendarDays, ChartNoAxesCombined, MessageCircleMore } from "lucide-react";
+import { RotateCcw, Search, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DashboardMetrics } from "@/modules/dashboard/components/dashboard-metrics";
@@ -10,10 +9,14 @@ import type { DashboardMetricsData } from "@/modules/dashboard/components/dashbo
 import { DashboardOverview } from "@/modules/dashboard/components/dashboard-overview";
 import type { DashboardOverviewData } from "@/modules/dashboard/components/dashboard-overview";
 import { useApiResource } from "@/hooks/use-api-resource";
+import { useCurrentUser } from "@/hooks/use-current-user";
+import { readCampaignHistory } from "@/modules/envio-em-massa/history";
 
 type DashboardData = DashboardMetricsData & DashboardOverviewData;
 
 export function DashboardPanel() {
+  const { data: currentUser } = useCurrentUser();
+  const [dispatches, setDispatches] = useState<number | null>(null);
   const [period, setPeriod] = useState("7");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -24,17 +27,28 @@ export function DashboardPanel() {
 
   useEffect(() => {
     const refresh = () => setRefreshKey(Date.now());
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") refresh();
-    }, 30_000);
-    window.addEventListener("focus", refresh);
     window.addEventListener("crm:dashboard-refresh", refresh);
     return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("focus", refresh);
       window.removeEventListener("crm:dashboard-refresh", refresh);
     };
   }, []);
+
+  useEffect(() => {
+    if (!currentUser?.id) { setDispatches(null); return; }
+    try {
+      const start = appliedPeriod === "custom" ? (appliedFrom ? new Date(`${appliedFrom}T00:00:00`) : null) : new Date();
+      const end = appliedPeriod === "custom" ? (appliedTo ? new Date(`${appliedTo}T23:59:59.999`) : null) : new Date();
+      if (appliedPeriod !== "custom" && start && end) {
+        start.setDate(start.getDate() - (Number(appliedPeriod) - 1));
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+      }
+      setDispatches(readCampaignHistory(currentUser.id).filter((entry) => {
+        const date = new Date(entry.createdAt);
+        return (!start || date >= start) && (!end || date <= end);
+      }).length);
+    } catch { setDispatches(null); }
+  }, [currentUser?.id, appliedPeriod, appliedFrom, appliedTo, refreshKey]);
 
   const dashboardUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -52,32 +66,21 @@ export function DashboardPanel() {
   const dashboard = useApiResource<DashboardData>(dashboardUrl);
 
   return (
-    <div className="space-y-6">
-      <section className="crm-intro crm-hero relative isolate overflow-hidden rounded-2xl p-6 text-white sm:p-8">
-        <div aria-hidden="true" className="pointer-events-none absolute -right-20 -top-40 -z-10 h-[420px] w-[420px] rounded-full border-[60px] border-white/[0.045]" />
-        <div className="flex flex-col justify-between gap-7 xl:flex-row xl:items-center">
-          <div className="max-w-xl">
-            <p className="mb-4 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-red-100"><span className="h-1.5 w-1.5 rounded-full bg-red-500" />Central de resultados · Connecta Telecom</p>
-            <h2 className="text-2xl font-extrabold leading-tight tracking-tight sm:text-[32px]">Sua operação conectada.<br /><span className="text-red-100">Seu próximo resultado, mais perto.</span></h2>
-            <p className="mt-3 max-w-md text-sm leading-relaxed text-neutral-100/85">Do primeiro contato à venda. Acompanhe oportunidades e transforme conversas em novas conexões.</p>
-            <Button asChild className="mt-6 border border-white/25 bg-white text-neutral-950 shadow-sm hover:bg-red-50"><Link href="/conversas"><MessageCircleMore className="h-4 w-4" />Abrir conversas<ArrowUpRight className="h-4 w-4" /></Link></Button>
-          </div>
-          <div className="min-w-0 rounded-xl border border-white/20 bg-white/10 p-5 backdrop-blur-sm xl:w-64 xl:shrink-0">
-            <div className="flex items-center justify-between gap-5 text-red-50"><span className="text-xs font-semibold">Oportunidades no gráfico</span><ChartNoAxesCombined className="h-5 w-5 shrink-0" /></div>
-            <p className="mt-4 text-4xl font-extrabold tabular-nums">{dashboard.loading ? "..." : dashboard.data ? dashboard.data.leadChart.reduce((sum, point) => sum + point.count, 0).toLocaleString("pt-BR") : "—"}</p>
-            <p className="mt-2 text-xs text-red-50">Entradas no intervalo selecionado</p>
-            <div className="mt-5 flex items-end gap-1.5" aria-hidden="true">{(dashboard.data?.leadChart ?? []).slice(-14).map((point) => <span key={point.date} className="flex-1 rounded-t-sm bg-red-200/70" style={{ height: `${Math.max(2, point.count / Math.max(1, ...(dashboard.data?.leadChart ?? []).map((item) => item.count)) * 40)}px` }} />)}</div>
-          </div>
-        </div>
-      </section>
+    <div className="space-y-4">
       {dashboard.error ? <p role="alert" className="rounded-lg border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">{dashboard.error}</p> : null}
-      <DashboardMetrics data={dashboard.data} loading={dashboard.loading} />
-      <div className="flex flex-col gap-4 rounded-lg border bg-card p-4 md:flex-row md:items-end md:justify-between">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <label className="space-y-1 text-sm">
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays className="h-3.5 w-3.5" />Período do relatório</span>
+      <form aria-label="Filtros do relatório" className="flex flex-wrap items-center gap-3 rounded-2xl border border-border/70 bg-card px-4 py-3" onSubmit={(event) => {
+        event.preventDefault();
+        setAppliedPeriod(period);
+        setAppliedFrom(customPeriod ? from : "");
+        setAppliedTo(customPeriod ? to : "");
+        setRefreshKey(Date.now());
+      }}>
+        <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground"><CalendarDays className="h-4 w-4" aria-hidden="true" />Período</span>
+        <div className="flex flex-1 flex-wrap items-center gap-3">
+          <label className="min-w-40 flex-1 sm:flex-none">
+            <span className="sr-only">Período</span>
             <select
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              className="h-9 w-full rounded-xl border border-input bg-background/60 px-3 text-sm transition-colors hover:border-primary/40"
               value={period}
               onChange={(event) => setPeriod(event.target.value)}
             >
@@ -89,24 +92,19 @@ export function DashboardPanel() {
               <option value="custom">Personalizado</option>
             </select>
           </label>
-          <label className="space-y-1 text-sm">
-            <span className="text-xs text-muted-foreground">Data inicial</span>
-            <Input disabled={!customPeriod} type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
-          </label>
-          <label className="space-y-1 text-sm">
-            <span className="text-xs text-muted-foreground">Data final</span>
-            <Input disabled={!customPeriod} type="date" value={to} onChange={(event) => setTo(event.target.value)} />
-          </label>
+          {customPeriod && <label className="min-w-36 flex-1 sm:flex-none">
+            <span className="sr-only">Data inicial</span>
+            <Input className="h-9 min-w-0 rounded-xl bg-background/60" disabled={!customPeriod} required={customPeriod} max={to || undefined} type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+          </label>}
+          {customPeriod && <label className="min-w-36 flex-1 sm:flex-none">
+            <span className="sr-only">Data final</span>
+            <Input className="h-9 min-w-0 rounded-xl bg-background/60" disabled={!customPeriod} required={customPeriod} min={from || undefined} type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+          </label>}
         </div>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              setAppliedPeriod(period);
-              setAppliedFrom(period === "custom" ? from : "");
-              setAppliedTo(period === "custom" ? to : "");
-            }}
+            type="submit"
+            className="h-9 rounded-xl px-4 text-xs"
           >
             <Search className="h-4 w-4" aria-hidden="true" />
             Atualizar
@@ -114,6 +112,7 @@ export function DashboardPanel() {
           <Button
             type="button"
             variant="ghost"
+            className="h-9 rounded-xl px-3 text-xs text-muted-foreground"
             onClick={() => {
               setFrom("");
               setTo("");
@@ -121,13 +120,15 @@ export function DashboardPanel() {
               setAppliedPeriod("7");
               setAppliedFrom("");
               setAppliedTo("");
+              setRefreshKey(Date.now());
             }}
           >
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
             Limpar
           </Button>
         </div>
-      </div>
+      </form>
+      <DashboardMetrics data={dashboard.data} loading={dashboard.loading} dispatches={dispatches} />
 
       <DashboardOverview data={dashboard.data} loading={dashboard.loading} />
     </div>

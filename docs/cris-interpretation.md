@@ -1,4 +1,4 @@
-# Interpretacao do Cris
+# Interpretacao da Sofia
 
 ## Funcionamento
 

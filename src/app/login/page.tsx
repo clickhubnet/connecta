@@ -1,40 +1,47 @@
 import { Suspense } from "react";
-import { ArrowUpRight, ChartNoAxesCombined, MessageCircleMore, ShieldCheck, Users } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { LoginForm } from "@/modules/usuarios/components/login-form";
 
 export default function LoginPage() {
   return (
-    <main className="login-page grid min-h-dvh bg-[#f7f7f7] text-neutral-950 lg:grid-cols-[1.05fr_1fr]">
-      <section className="crm-hero relative isolate flex flex-col overflow-hidden px-6 py-6 text-white sm:px-10 lg:min-h-dvh lg:px-12 lg:py-10 xl:px-16">
-        <div aria-hidden="true" className="pointer-events-none absolute -bottom-32 -left-32 -z-10 h-[600px] w-[600px] rounded-full border-[80px] border-white/[0.04]" />
-        <div className="crm-intro my-auto hidden py-12 lg:block">
-          <p className="mb-5 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-red-100"><span className="h-1.5 w-1.5 rounded-full bg-red-500" />Conexões que geram negócios</p>
-          <h2 className="max-w-xl text-[clamp(2.5rem,3.5vw,3.75rem)] font-extrabold leading-[1.12] tracking-tight">Mais próximo<br />do cliente.<br /><span className="text-red-100">Mais forte em<br />cada conexão.</span></h2>
-          <p className="mt-6 max-w-sm text-sm leading-7 text-neutral-100/85">Conversas, oportunidades e sua equipe no mesmo lugar. Uma operação conectada do primeiro contato à próxima conquista.</p>
-          <div className="mt-10 max-w-md overflow-hidden rounded-2xl border border-white/20 bg-white/10 shadow-xl shadow-black/10">
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4"><span className="text-xs font-semibold">Cada etapa, uma nova possibilidade.</span><ArrowUpRight className="h-4 w-4 text-red-100" /></div>
-            <div className="grid grid-cols-3 gap-2 p-5">{[{ icon: MessageCircleMore, label: "Converse" }, { icon: Users, label: "Conecte" }, { icon: ChartNoAxesCombined, label: "Conquiste" }].map(({ icon: Icon, label }) => <div key={label} className="space-y-3"><span className="grid h-10 w-10 place-items-center rounded-xl border border-white/15 bg-white/10"><Icon className="h-5 w-5 text-red-50" /></span><p className="text-xs font-medium text-red-50">{label}</p></div>)}</div>
+    <main className="login-page relative isolate grid min-h-dvh bg-white text-black lg:grid-cols-[1.1fr_1fr]">
+      <div aria-hidden="true" className="login-backdrop"><div className="login-wave login-wave-one" /><div className="login-wave login-wave-two" /></div>
+      <section className="login-showcase relative isolate min-h-0 hidden flex-col overflow-hidden px-10 py-8 text-white lg:flex xl:px-16 xl:py-10">
+        <div aria-hidden="true" className="login-glow" />
+        <p className="login-reveal text-[11px] font-semibold uppercase tracking-[0.24em] text-white/85">Connecta · Central de operações</p>
+        <div aria-hidden="true" className="login-orbits">
+          <div className="login-orbit login-orbit-one"><span /></div>
+          <div className="login-orbit login-orbit-two"><span /></div>
+          <div className="login-orbit login-orbit-three"><span /></div>
+          <div className="login-orbit-core" />
+        </div>
+        <div className="login-reveal login-delay-1 relative z-10 mt-auto pb-6 xl:pb-10">
+          <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.2em] text-red-100">Relacionamentos que movem sua empresa</p>
+          <h2 className="max-w-lg text-[clamp(2rem,3.4vw,3.5rem)] font-medium leading-[1.08] tracking-[-0.045em]">Conexões melhores.<br /><span className="text-white/85">Novas possibilidades.</span></h2>
+          <p className="mt-4 max-w-sm text-sm leading-6 text-red-50">Transforme contatos em relacionamentos e acompanhe cada etapa do atendimento com clareza.</p>
+          <div className="mt-6 flex flex-wrap items-center gap-4 text-[11px] text-white/85">
+            <span>Atendimento</span><span aria-hidden="true" className="h-1 w-1 rounded-full bg-white" /><span>Relacionamento</span><span aria-hidden="true" className="h-1 w-1 rounded-full bg-white" /><span>Resultados</span>
           </div>
         </div>
-        <p className="hidden text-[10px] uppercase tracking-[0.18em] text-red-100/70 lg:block">Tecnologia para conectar. Pessoas para transformar.</p>
       </section>
-      <section className="relative flex flex-col justify-center px-5 py-10 sm:px-10 lg:px-12">
-        <div className="crm-intro mx-auto w-full max-w-[420px]">
-          <div className="mb-8">
-            <img
-              src="/brand/logosem-transparente.png"
-              alt="Connecta Telecom"
-              className="mb-5 h-auto w-full max-w-[150px] object-contain"
-            />
-            <span className="mb-6 inline-flex items-center gap-2 rounded-full border border-red-100 bg-red-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-red-700"><ShieldCheck className="h-3.5 w-3.5" />Acesso à plataforma</span>
-            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">Bom ter você aqui.</h1>
-            <p className="mt-3 text-sm leading-6 text-slate-500">Entre com sua conta para continuar de onde parou.</p>
+      <section aria-labelledby="login-heading" className="login-access relative flex min-h-0 flex-col justify-center px-6 py-5 sm:px-12 lg:px-14">
+        <div className="mx-auto w-full max-w-[380px]">
+          <div aria-hidden="true" className="login-accent mb-5 h-1 w-12 rounded-full" />
+          <div className="login-reveal">
+            <img src="/brand/logosem-transparente.png" alt="Connecta Telecom" className="mb-6 h-auto w-[150px] object-contain" />
+            <h1 id="login-heading" className="text-[28px] font-semibold leading-tight tracking-[-0.035em] sm:text-[32px]">Bem-vindo à<br />sua central Connecta.</h1>
+            <p className="mb-6 mt-3 text-sm leading-6 text-black">Entre com suas credenciais para iniciar sua jornada de trabalho.</p>
           </div>
-          <div className="rounded-2xl border border-neutral-200/80 bg-white p-5 shadow-[0_12px_40px_rgba(15,15,15,0.06)] sm:p-7">
-            <Suspense fallback={<div role="status" className="h-64 rounded-xl bg-slate-50 p-5 text-sm text-slate-500">Carregando acesso...</div>}><LoginForm /></Suspense>
+          <div className="login-reveal login-delay-1">
+            <Suspense fallback={<div role="status" className="h-64 rounded-xl bg-neutral-100 p-5 text-sm text-black">Preparando seu acesso...</div>}><LoginForm /></Suspense>
           </div>
-          <p className="mt-6 text-center text-xs leading-6 text-slate-500">Precisa de acesso ou esqueceu sua senha?<br /><span className="font-semibold text-slate-700">Fale com o administrador da sua equipe.</span></p>
-          <div className="mt-10 flex items-center justify-center gap-2 border-t border-slate-200 pt-6 text-[10px] font-medium tracking-wide text-slate-400"><ShieldCheck className="h-3.5 w-3.5" />CONNECTA TELECOM · Acesso exclusivo para sua equipe</div>
+          <div className="login-reveal login-delay-2 mt-5 border-t border-red-100 pt-4">
+            <p className="text-xs font-medium text-black">Primeiro acesso ou senha esquecida?</p>
+            <p className="mt-2 text-xs leading-5 text-black">O administrador da sua equipe pode ajudar você a acessar sua conta.</p>
+          </div>
+          <div className="login-reveal login-delay-2 mt-5 flex items-center gap-2 text-[10px] tracking-wide text-black">
+            <ShieldCheck aria-hidden="true" className="h-3.5 w-3.5 shrink-0" /> Connecta Telecom · Acesso corporativo
+          </div>
         </div>
       </section>
     </main>

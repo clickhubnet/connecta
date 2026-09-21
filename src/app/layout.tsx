@@ -17,9 +17,13 @@ export const metadata: Metadata = {
   title: "CONNECTA TELECOM CRM",
   description: "CRM comercial da Connecta Telecom com atendimento, vendas e automações.",
   icons: {
-    icon: "/brand/connecta-mark.svg",
-    shortcut: "/brand/connecta-mark.svg",
-    apple: "/brand/connecta-mark.svg",
+    icon: [
+      { url: "/brand/connecta-favicon.svg?v=2", type: "image/svg+xml" },
+      { url: "/brand/connecta-favicon-32.png?v=2", type: "image/png", sizes: "32x32" },
+      { url: "/brand/connecta-favicon-16.png?v=2", type: "image/png", sizes: "16x16" },
+    ],
+    shortcut: "/favicon.ico?v=2",
+    apple: { url: "/brand/connecta-apple-icon.png?v=2", sizes: "180x180", type: "image/png" },
   },
 };
 

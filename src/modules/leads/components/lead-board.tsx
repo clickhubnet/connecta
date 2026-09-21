@@ -1,8 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { CalendarClock, Check, Download, Eye, LayoutGrid, List, MessageCircle, MessageSquareText, Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
+import { Users, CircleDollarSign, Trophy, MapPin, UserRound, CalendarClock, Check, Download, Eye, LayoutGrid, List, MessageCircle, MessageSquareText, Pencil, Plus, RefreshCw, Search, Trash2, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
+import { MetricCard } from "@/components/cards/metric-card";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -301,18 +302,19 @@ export function LeadBoard() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-[auto_1fr_auto_auto_auto]">
+    <div className="management-page leads-page space-y-5">
+      <div className="space-y-5">
+        <div className="management-toolbar flex flex-wrap items-center gap-3">
           <Button type="button" onClick={() => setShowCreateModal(true)}>
             <Plus className="h-4 w-4" aria-hidden="true" />
-            Cadastrar Lead Avulso
+            Cadastrar lead
           </Button>
-          <div className="relative">
+          <div className="relative min-w-48 flex-1">
             <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
             <Input
               className="pl-9"
-              placeholder="Pesquisar por nome, WhatsApp, CEP, plano ou responsavel"
+              aria-label="Pesquisar leads"
+              placeholder="Pesquisar nome, contato, plano..."
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
@@ -334,7 +336,7 @@ export function LeadBoard() {
               </option>
             ))}
           </select>
-          <div className="flex rounded-md border bg-background p-1">
+          <div className="flex gap-1 rounded-xl border bg-background p-1">
             <Button
               aria-label="Visualizar kanban"
               size="sm"
@@ -342,7 +344,7 @@ export function LeadBoard() {
               variant={viewMode === "kanban" ? "secondary" : "ghost"}
               onClick={() => setViewMode("kanban")}
             >
-              <LayoutGrid className="h-4 w-4" aria-hidden="true" />
+              <LayoutGrid className="h-4 w-4" aria-hidden="true" />Quadro
             </Button>
             <Button
               aria-label="Visualizar tabela"
@@ -351,7 +353,7 @@ export function LeadBoard() {
               variant={viewMode === "table" ? "secondary" : "ghost"}
               onClick={() => setViewMode("table")}
             >
-              <List className="h-4 w-4" aria-hidden="true" />
+              <List className="h-4 w-4" aria-hidden="true" />Lista
             </Button>
           </div>
           <Button variant="outline" type="button" onClick={refreshAll}>
@@ -366,10 +368,10 @@ export function LeadBoard() {
           </Button>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Metric label="Total de Leads Cadastrados" value={(data?.length ?? 0).toString()} />
-          <Metric label="Pipeline estimado" value={currencyFormatter.format(totalPipeline)} />
-          <Metric label="Fechados" value={filtered.filter((lead) => lead.status === "WON").length.toString()} />
+        <div className="grid gap-4 sm:grid-cols-3">
+          <MetricCard title="Leads cadastrados" value={loading ? "..." : (data?.length ?? 0).toString()} helper="Contatos na sua base" icon={Users} />
+          <MetricCard title="Pipeline estimado" value={loading ? "..." : currencyFormatter.format(totalPipeline)} helper="Valor das oportunidades filtradas" icon={CircleDollarSign} tone="indigo" />
+          <MetricCard title="Fechados" value={loading ? "..." : filtered.filter((lead) => lead.status === "WON").length.toString()} helper="Vendas nos resultados filtrados" icon={Trophy} tone="teal" />
         </div>
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -436,15 +438,6 @@ export function LeadBoard() {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border bg-background p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-lg font-semibold">{value}</p>
-    </div>
-  );
-}
-
 function KanbanView({
   leads,
   loading,
@@ -476,9 +469,11 @@ function KanbanView({
 }) {
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 rounded-md border bg-background p-3 sm:flex-row">
+      <div className="management-toolbar flex flex-col gap-3 sm:flex-row sm:items-center">
         <Input
-          placeholder="Nova etapa do Kanban"
+          className="sm:max-w-xs"
+          aria-label="Nome da nova etapa"
+          placeholder="Nome da nova etapa"
           value={newStageName}
           onChange={(event) => onNewStageNameChange(event.target.value)}
         />
@@ -487,7 +482,7 @@ function KanbanView({
           Criar Etapa
         </Button>
       </div>
-      <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+      <div className="flex items-start gap-4 overflow-x-auto pb-4">
       {stages.map((column) => {
         const columnLeads = leads.filter((lead) =>
           lead.kanbanStageId ? lead.kanbanStageId === column.id : lead.status === column.status,
@@ -495,7 +490,7 @@ function KanbanView({
         return (
           <Card
             key={column.id}
-            className="min-h-72"
+            className="management-kanban-column min-h-80 w-[340px] max-w-[88vw] shrink-0"
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => {
               event.preventDefault();
@@ -503,7 +498,7 @@ function KanbanView({
               if (leadId) void onUpdate(leadId, { kanbanStageId: column.id });
             }}
           >
-            <CardHeader className="p-4">
+            <CardHeader className="border-b border-border/60 p-4">
               <StageHeader
                 stage={column}
                 count={columnLeads.length}
@@ -511,7 +506,7 @@ function KanbanView({
                 onDeleteStage={onDeleteStage}
               />
             </CardHeader>
-            <CardContent className="space-y-3 p-4 pt-0">
+            <CardContent className="max-h-[65vh] space-y-3 overflow-y-auto p-3">
               {loading ? (
                 <EmptyState text="Carregando" />
               ) : columnLeads.length ? (
@@ -608,10 +603,10 @@ function TableView({
   }
 
   return (
-    <div className="overflow-hidden rounded-md border bg-background">
+    <div className="management-surface border bg-card">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1120px] text-sm">
-          <thead className="bg-muted/60 text-left text-xs uppercase text-muted-foreground">
+        <table className="management-table w-full min-w-[1120px] text-sm">
+          <thead className="bg-muted/60 text-left text-xs text-muted-foreground">
             <tr>
               <th className="px-3 py-3 font-medium">Nome do cliente</th>
               <th className="px-3 py-3 font-medium">Contato</th>
@@ -686,7 +681,7 @@ function TableView({
               ))
             ) : (
               <tr>
-                <td className="px-3 py-8 text-center text-muted-foreground" colSpan={7}>
+                <td className="px-3 py-8 text-center text-muted-foreground" colSpan={8}>
                   Nenhum lead encontrado
                 </td>
               </tr>
@@ -715,7 +710,7 @@ function PaginationControls({
   const end = Math.min(page * itemsPerPage, totalItems);
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border bg-background p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+    <div className="management-toolbar flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
       <p className="text-muted-foreground">
         Mostrando {start}-{end} de {totalItems} leads
       </p>
@@ -763,7 +758,7 @@ function LeadCard({
 }) {
   return (
     <div
-      className="rounded-md border bg-background p-3 text-sm"
+      className="management-task rounded-2xl border bg-card p-4 text-sm shadow-sm"
       draggable
       onDragStart={(event) => {
         event.dataTransfer.setData("text/plain", lead.id);
@@ -772,8 +767,8 @@ function LeadCard({
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate font-medium">{lead.name}</p>
-          <p className="text-muted-foreground">{lead.phone}</p>
+          <button type="button" className="text-left font-semibold leading-relaxed hover:text-primary" onClick={() => onOpenDetails(lead.id)}>{lead.name}</button>
+          <p className="mt-1 text-xs text-muted-foreground">{lead.phone}</p>
         </div>
         <div className="flex shrink-0 gap-1">
           <WhatsAppButton phone={lead.phone} compact />
@@ -797,13 +792,13 @@ function LeadCard({
           </Button>
         </div>
       </div>
-      <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+      <div className="mt-4 space-y-2 rounded-xl bg-muted/30 p-3 text-xs text-muted-foreground">
         <p>{lead.planName ?? lead.plan?.name ?? "Sem plano definido"}</p>
-        <p>{lead.assignedUser?.name ?? "Sem responsavel"}</p>
-        <p>{[lead.city, lead.state].filter(Boolean).join(" / ") || lead.cep || "Sem localizacao"}</p>
-        <p>{currencyFormatter.format(Number(lead.expectedValue ?? 0))}</p>
+        <p className="flex items-center gap-2"><UserRound className="h-3.5 w-3.5 shrink-0" />{lead.assignedUser?.name ?? "Sem responsável"}</p>
+        <p className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5 shrink-0" />{[lead.city, lead.state].filter(Boolean).join(" / ") || lead.cep || "Sem localização"}</p>
+        <p className="border-t border-border/60 pt-2 text-sm font-semibold text-foreground tabular-nums">{currencyFormatter.format(Number(lead.expectedValue ?? 0))}</p>
       </div>
-      <div className="mt-3 space-y-2">
+      <details className="mt-3"><summary className="cursor-pointer text-xs font-medium text-muted-foreground hover:text-primary">Gerenciar lead</summary><div className="mt-3 space-y-2">
         <StageSelect
           value={lead.kanbanStageId ?? ""}
           stages={stages}
@@ -816,7 +811,7 @@ function LeadCard({
           users={users}
           onChange={(assignedUserId) => onUpdate(lead.id, { assignedUserId })}
         />
-      </div>
+      </div></details>
     </div>
   );
 }
@@ -839,11 +834,11 @@ function LeadCreateModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 !m-0 bg-black/40">
+    <div className="fixed inset-0 z-50 !m-0 bg-slate-950/50 backdrop-blur-sm">
       <div className="ml-auto flex h-full w-full max-w-2xl flex-col border-l bg-background shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b p-5">
           <div>
-            <p className="text-xs uppercase text-muted-foreground">Cadastro avulso</p>
+            <p className="text-xs text-muted-foreground">Cadastro avulso</p>
             <h2 className="text-xl font-semibold">Novo Lead</h2>
           </div>
           <Button aria-label="Fechar cadastro" size="sm" variant="ghost" type="button" onClick={onClose}>
@@ -885,7 +880,7 @@ function LeadEditForm({
   }
 
   return (
-    <section className="rounded-md border p-4">
+    <section className="rounded-xl border bg-card p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold">Dados do Lead</h3>
@@ -1002,11 +997,11 @@ function LeadDetailPanel({
   }
 
   return (
-    <div className="fixed inset-0 z-50 !m-0 bg-black/40">
+    <div className="fixed inset-0 z-50 !m-0 bg-slate-950/50 backdrop-blur-sm">
       <div className="ml-auto flex h-full w-full max-w-2xl flex-col border-l bg-background shadow-xl">
         <div className="flex items-start justify-between gap-4 border-b p-5">
           <div className="min-w-0">
-            <p className="text-xs uppercase text-muted-foreground">Detalhes do lead</p>
+            <p className="text-xs text-muted-foreground">Detalhes do lead</p>
             <h2 className="truncate text-xl font-semibold">{lead?.name ?? "Carregando"}</h2>
             <p className="text-sm text-muted-foreground">{lead?.phone ?? "Buscando informacoes"}</p>
           </div>
@@ -1022,7 +1017,7 @@ function LeadDetailPanel({
             <>
               <LeadEditForm lead={lead} users={users} plans={plans} stages={stages} onSave={onSave} />
 
-              <section className="rounded-md border p-4">
+              <section className="rounded-xl border bg-card p-4">
                 <h3 className="flex items-center gap-2 text-sm font-semibold">
                   <CalendarClock className="h-4 w-4" aria-hidden="true" />
                   Compromissos Vinculados
@@ -1048,10 +1043,10 @@ function LeadDetailPanel({
                 </div>
               </section>
 
-              <section className="rounded-md border p-4">
+              <section className="rounded-xl border bg-card p-4">
                 <h3 className="flex items-center gap-2 text-sm font-semibold">
                   <MessageSquareText className="h-4 w-4" aria-hidden="true" />
-                  Conversas da Cris
+                  Conversas da Sofia
                 </h3>
                 <div className="mt-3 space-y-3">
                   {lead.conversations.length ? (
@@ -1064,8 +1059,8 @@ function LeadDetailPanel({
                         <div className="mt-3 space-y-2">
                           {conversation.messages.map((message) => (
                             <div key={message.id} className="rounded-md bg-muted p-2 text-sm">
-                              <p className="text-xs uppercase text-muted-foreground">
-                                {message.direction === "inbound" ? "Cliente" : "Cris"} -{" "}
+                              <p className="text-xs text-muted-foreground">
+                                {message.direction === "inbound" ? "Cliente" : "Sofia"} -{" "}
                                 {formatDateTime(message.createdAt)}
                               </p>
                               <p className="mt-1 whitespace-pre-wrap">{message.body}</p>
@@ -1198,7 +1193,7 @@ function UserSelect({
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+    <div className="rounded-xl border border-dashed bg-card/60 px-4 py-8 text-center text-xs text-muted-foreground">
       {text}
     </div>
   );

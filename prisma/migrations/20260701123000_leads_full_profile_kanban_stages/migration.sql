@@ -13,7 +13,7 @@ WITH numbered_leads AS (
   WHERE "customerCode" IS NULL
 )
 UPDATE "Lead" l
-SET "customerCode" = 'ALFFA-' || LPAD(numbered_leads.row_number::TEXT, 6, '0')
+SET "customerCode" = 'CONNECTA-' || LPAD(numbered_leads.row_number::TEXT, 6, '0')
 FROM numbered_leads
 WHERE l."id" = numbered_leads."id";
 

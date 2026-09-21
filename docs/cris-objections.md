@@ -1,4 +1,4 @@
-# Cris: objections, pauses and inbound delivery
+# Sofia: objections, pauses and inbound delivery
 
 - A sequence of commercial objections receives at most three distinct replies.
   A further refusal pauses the conversation, keeping its state and customer data.

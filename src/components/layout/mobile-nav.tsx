@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 import { Grid2X2, X } from "lucide-react";
-import { navigationItems } from "@/config/navigation";
+import { navigationItems, navigationGroups, canAccessPage } from "@/config/navigation";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
 const primaryPaths = ["/dashboard", "/conversas", "/leads", "/compromissos"];
@@ -16,7 +16,7 @@ export function MobileNav() {
   const [open, setOpen] = useState(false);
   const { data: user } = useCurrentUser();
   const visibleItems = navigationItems.filter(
-    (item) => user?.role === "ADMIN" || ("employeeVisible" in item) || (!("adminOnly" in item) && Boolean(user?.permissions?.[item.permission])),
+    (item) => canAccessPage(user, item),
   );
   const primary = primaryPaths.flatMap((path) => visibleItems.filter((item) => item.href === path));
   const secondary = visibleItems.filter((item) => !primaryPaths.includes(item.href));
@@ -43,12 +43,16 @@ export function MobileNav() {
             <div><Dialog.Title className="text-lg font-bold">Seu workspace</Dialog.Title><Dialog.Description className="mt-1 text-xs text-muted-foreground">Todas as ferramentas da Connecta Telecom.</Dialog.Description></div>
             <Dialog.Close aria-label="Fechar menu" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-muted"><X className="h-5 w-5" /></Dialog.Close>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            {secondary.map((item) => {
+          <div className="space-y-5">
+            {navigationGroups.map((group) => {
+              const items = secondary.filter((item) => item.group === group);
+              if (!items.length) return null;
+              return <section key={group}>{group && <h3 className="mb-2 text-xs font-semibold text-muted-foreground">{group}</h3>}<div className="grid grid-cols-2 gap-2">{items.map((item) => {
               const disabled = "comingSoon" in item && item.comingSoon;
-              const content = <><item.icon className="h-5 w-5 text-primary" aria-hidden="true" /><span className="text-xs font-semibold">{item.title}</span>{disabled ? <span className="text-[10px] text-muted-foreground">Em breve</span> : "badgeLabel" in item ? <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold text-emerald-800">{item.badgeLabel}</span> : null}</>;
+              const content = <><item.icon className="h-5 w-5 text-primary" aria-hidden="true" /><span className="text-xs font-semibold">{item.title}</span>{disabled ? <span className="text-[10px] text-muted-foreground">Em breve</span> : null}</>;
               const classes = `flex min-h-24 flex-col items-start justify-center gap-2 rounded-xl border p-3 ${disabled ? "opacity-50" : pathname === item.href ? "border-primary/30 bg-primary/10" : "bg-muted/30 hover:bg-accent"}`;
               return disabled ? <div key={item.href} aria-disabled="true" className={classes}>{content}</div> : <Link key={item.href} href={item.href} onClick={() => setOpen(false)} aria-current={pathname === item.href ? "page" : undefined} className={classes}>{content}</Link>;
+            })}</div></section>;
             })}
           </div>
         </Dialog.Content>

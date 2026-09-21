@@ -17,6 +17,33 @@ const textTemplate = {
   ],
 };
 
+test("texto livre envia somente o texto sem consultar templates", async () => {
+  const calls = [];
+  const service = new MassMessageService({
+    async listTemplates() { throw new Error("Não deve consultar templates"); },
+    async sendText(phone, message) { calls.push({ phone, message }); return "wamid.text"; },
+  });
+  const result = await service.send({ mode: "text", message: "Olá, tudo bem?", contactsText: "5511999999999", consentConfirmed: true });
+  assert.equal(result.accepted, 1);
+  assert.deepEqual(calls, [{ phone: "5511999999999", message: "Olá, tudo bem?" }]);
+  await assert.rejects(() => service.send({ mode: "text", contactsText: "5511999999999", consentConfirmed: true }), /Digite a mensagem/);
+});
+
+test("template digitado é resolvido por nome e idioma e valida aprovação", async () => {
+  const calls = [];
+  const template = { ...textTemplate, components: [{ type: "BODY", text: "Olá" }] };
+  const service = new MassMessageService({
+    async listTemplates() { return [template]; },
+    async sendTemplate(phone, payload) { calls.push(payload); return "wamid.template"; },
+  });
+  const input = { mode: "template", templateName: template.name, language: "pt_BR", contactsText: "5511999999999", consentConfirmed: true };
+  assert.equal((await service.send(input)).accepted, 1);
+  assert.equal(calls[0].name, template.name);
+  await assert.rejects(() => service.send({ ...input, language: "en_US" }), /não encontrado/);
+  template.status = "PENDING";
+  await assert.rejects(() => service.send(input), /aprovado/);
+});
+
 test("normaliza e deduplica contatos brasileiros", () => {
   assert.deepEqual(parseContacts("+55 (11) 99999-9999\n11999999999;5511999999999"), ["5511999999999"]);
 });

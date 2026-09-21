@@ -1,7 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
-import { BarChart3, CircleDollarSign, Receipt, Users } from "lucide-react";
+import { BarChart3, CircleDollarSign, Megaphone, Users } from "lucide-react";
 import { MetricCard } from "@/components/cards/metric-card";
 
 export type DashboardMetricsData = {
@@ -12,13 +12,13 @@ export type DashboardMetricsData = {
   showExpenses?: boolean;
 };
 
-type MetricIcons = Record<"newLeads" | "wonLeads" | "totalValue" | "expenses", LucideIcon>;
+type MetricIcons = Record<"newLeads" | "wonLeads" | "totalValue" | "dispatches", LucideIcon>;
 
 const icons: MetricIcons = {
   newLeads: Users,
   wonLeads: BarChart3,
   totalValue: CircleDollarSign,
-  expenses: Receipt,
+  dispatches: Megaphone,
 };
 
 const currency = new Intl.NumberFormat("pt-BR", {
@@ -26,11 +26,10 @@ const currency = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 
-export function DashboardMetrics({ data, loading }: { data: DashboardMetricsData | null; loading: boolean }) {
-  const showExpenses = data?.showExpenses ?? true;
+export function DashboardMetrics({ data, loading, dispatches }: { data: DashboardMetricsData | null; loading: boolean; dispatches: number | null }) {
 
   return (
-    <div className={`grid gap-4 sm:grid-cols-2 ${showExpenses ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <MetricCard
         title="Leads Novos"
         value={loading ? "..." : String(data?.newLeads ?? 0)}
@@ -47,22 +46,22 @@ export function DashboardMetrics({ data, loading }: { data: DashboardMetricsData
         href="/leads?status=WON"
       />
       <MetricCard
-        title="Valor Total"
+        title="Faturamento"
         tone="indigo"
         value={loading ? "..." : currency.format(data?.totalValue ?? 0)}
         helper="Planos fechados"
         icon={icons.totalValue}
         href="/leads?status=WON"
       />
-      {showExpenses ? (
+
         <MetricCard
-          title="Despesas"
+          title="Disparos realizados"
           tone="amber"
-          value={loading ? "..." : currency.format(data?.expenses ?? 0)}
-          helper="A pagar"
-          icon={icons.expenses}
+          value={dispatches === null ? "—" : String(dispatches)}
+          helper="Campanhas no período · histórico local"
+          icon={icons.dispatches}
         />
-      ) : null}
+
     </div>
   );
 }

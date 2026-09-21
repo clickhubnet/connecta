@@ -369,7 +369,7 @@ export class ConversationService {
           await writeTechnicalLog({
             level: "ERROR",
             category: "chatbot",
-            message: "Falha ao enviar lembrete automático da Cris.",
+            message: "Falha ao enviar lembrete automático da Sofia.",
             method: "POST",
             endpoint: "cron/conversations-follow-up",
             integration: "meta",

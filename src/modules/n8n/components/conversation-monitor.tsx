@@ -21,7 +21,7 @@ export function ConversationMonitor() {
     <Card className="xl:col-span-2">
       <CardHeader>
         <CardTitle>Conversas do Chatbot</CardTitle>
-        <CardDescription>Monitoramento das últimas interações processadas pela Cris</CardDescription>
+        <CardDescription>Monitoramento das últimas interações processadas pela Sofia</CardDescription>
       </CardHeader>
       <CardContent>
         {loading ? (
@@ -34,7 +34,7 @@ export function ConversationMonitor() {
                   <div>
                     <p className="font-medium">{conversation.lead?.name ?? conversation.phone}</p>
                     <p className="text-xs text-muted-foreground">
-                      {conversation.agent?.name ?? "Cris"} - {conversation.state}
+                      {conversation.agent?.name ?? "Sofia"} - {conversation.state}
                     </p>
                   </div>
                   <MessageCircle className="h-4 w-4 text-cyan-500" aria-hidden="true" />
@@ -43,7 +43,7 @@ export function ConversationMonitor() {
                   {conversation.messages.map((message) => (
                     <p key={message.id} className="line-clamp-2 rounded-md bg-muted px-3 py-2 text-xs">
                       <span className="font-medium">
-                        {message.direction === "inbound" ? "Cliente" : "Cris"}:
+                        {message.direction === "inbound" ? "Cliente" : "Sofia"}:
                       </span>{" "}
                       {message.body}
                     </p>

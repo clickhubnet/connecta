@@ -43,22 +43,29 @@ export class MassMessageService {
   async send(rawInput: unknown): Promise<MassMessageResult> {
     const input = parseInput(rawInput);
     const contacts = parseValidation(() => parseContacts(input.contactsText));
+    let templatePayload: Record<string, unknown> | undefined;
+    if (input.mode === "template") {
     const templates = await this.metaService.listTemplates();
-    const template = templates.find((item) => item.id === input.templateId);
+    const template = templates.find((item) => input.templateId ? item.id === input.templateId : item.name === input.templateName && item.language === input.language);
 
     if (!template) {
       throw new MassMessageValidationError("Template aprovado não encontrado nesta conta da Meta.");
     }
 
-    const templatePayload = parseValidation(() => buildTemplate(template, {
+    const headerFormat = template.components.find((item) => item.type === "HEADER")?.format?.toLowerCase();
+    if (input.mediaType && input.mediaType !== headerFormat) throw new MassMessageValidationError("O tipo de mídia não corresponde ao cabeçalho do template aprovado.");
+    templatePayload = parseValidation(() => buildTemplate(template, {
       headerValues: input.headerValues,
       bodyValues: input.bodyValues,
       mediaUrl: input.mediaUrl.trim(),
     }));
+    }
 
     const results = await mapWithConcurrency(contacts, CONCURRENCY, async (phone): Promise<ContactResult> => {
       try {
-        const providerMessageId = await this.metaService.sendTemplate(phone, templatePayload);
+        const providerMessageId = input.mode === "text"
+          ? await this.metaService.sendText(phone, input.message)
+          : await this.metaService.sendTemplate(phone, templatePayload!);
         return {
           phone,
           status: "accepted",

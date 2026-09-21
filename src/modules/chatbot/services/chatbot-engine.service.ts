@@ -147,7 +147,7 @@ export class ChatbotEngineService {
       agent,
       extractedData: input.extractedData,
       history: [...conversation.messages].reverse().map((message) => ({
-        role: message.direction === "inbound" ? "cliente" : "Cris",
+        role: message.direction === "inbound" ? "cliente" : "Sofia",
         text: message.body.slice(0, 1600),
       })),
     });
@@ -273,7 +273,7 @@ export class ChatbotEngineService {
       return {
         state: "ASK_CEP",
         memory: {},
-        reply: messageFor("START", `Olá 👋! Eu sou o ${input.agent?.name ?? "Cris"}, consultor da Claro. Estou aqui pra facilitar seu atendimento. Pode me informar o CEP da instalação?`),
+        reply: messageFor("START", `Olá 👋! Eu sou o ${input.agent?.name ?? "Sofia"}, consultor da Claro. Estou aqui pra facilitar seu atendimento. Pode me informar o CEP da instalação?`),
       };
     }
 
@@ -354,7 +354,7 @@ export class ChatbotEngineService {
       return {
         state: "ASK_CEP",
         memory,
-        reply: messageFor("START", `Olá 👋! Eu sou o ${input.agent?.name ?? "Cris"}, consultor da Claro. Estou aqui pra facilitar seu atendimento. Pode me informar o CEP da instalação?`),
+        reply: messageFor("START", `Olá 👋! Eu sou o ${input.agent?.name ?? "Sofia"}, consultor da Claro. Estou aqui pra facilitar seu atendimento. Pode me informar o CEP da instalação?`),
       };
     }
 
@@ -749,7 +749,7 @@ export class ChatbotEngineService {
           planId: memory.planId,
           planName: memory.planName,
           expectedValue: memory.planValue,
-          notes: "Lead finalizado pelo fluxo do chatbot Cris.",
+          notes: "Lead finalizado pelo fluxo do chatbot Sofia.",
         });
 
         return {
@@ -826,7 +826,7 @@ export class ChatbotEngineService {
     return {
       state: "ASK_CEP",
       memory: {},
-      reply: messageFor("START", `Olá 👋! Eu sou o ${input.agent?.name ?? "Cris"}, consultor da Claro. Estou aqui pra facilitar seu atendimento. Pode me informar o CEP da instalação?`),
+      reply: messageFor("START", `Olá 👋! Eu sou o ${input.agent?.name ?? "Sofia"}, consultor da Claro. Estou aqui pra facilitar seu atendimento. Pode me informar o CEP da instalação?`),
     };
   }
 
@@ -970,7 +970,7 @@ export class ChatbotEngineService {
 
       return await this.openAiService.answerCommercialQuestion(
         [
-          `Voce e ${input.agent?.name ?? "Cris"}, Consultor Comercial da Claro em um atendimento pelo WhatsApp.`,
+          `Voce e ${input.agent?.name ?? "Sofia"}, Consultor Comercial da Claro em um atendimento pelo WhatsApp.`,
           `Personalidade: ${input.agent?.personality ?? "Vendedor humano, simpatico, persuasivo e objetivo."}`,
           `Regras personalizadas:\n${formatAgentRules(input.agent?.rules)}`,
           "Responda em portugues do Brasil, de forma breve, vendedora e natural.",
@@ -1004,7 +1004,7 @@ export class ChatbotEngineService {
 
       return await this.openAiService.answerCommercialQuestion(
         [
-          `Voce e ${input.agent?.name ?? "Cris"}, consultor comercial da Claro, falando com o cliente no WhatsApp.`,
+          `Voce e ${input.agent?.name ?? "Sofia"}, consultor comercial da Claro, falando com o cliente no WhatsApp.`,
           `Personalidade: ${input.agent?.personality ?? "Consultor humano, persuasivo, divertido, cordial e objetivo."}`,
           `Regras:\n${formatAgentRules(input.agent?.rules)}`,
           `O funil esta na etapa ${input.state}. Responda a mensagem do cliente e trate objecoes com postura comercial. A etapa e controlada pelo sistema.`,
@@ -1888,7 +1888,7 @@ function callResumePrompt(
       flowMessage(
         agent?.flow,
         "START",
-        `Olá! Eu sou o ${agent?.name ?? "Cris"}, consultor comercial da Claro. Pode me informar o CEP da instalação?`,
+        `Olá! Eu sou o ${agent?.name ?? "Sofia"}, consultor comercial da Claro. Pode me informar o CEP da instalação?`,
       ),
       memory,
       agent?.name,
@@ -2001,7 +2001,7 @@ function toTitleCase(value: string) {
 
 function interpolate(template: string, memory: ChatMemory, agentName?: string) {
   return template
-    .replaceAll("{{agente}}", agentName || "Cris")
+    .replaceAll("{{agente}}", agentName || "Sofia")
     .replaceAll("{{nome}}", getFirstName(memory.name) || "cliente")
     .replaceAll("{{cep}}", formatCep(memory.cep))
     .replaceAll("{{endereco}}", formatFullAddress(memory));

@@ -614,44 +614,31 @@ export function ConversationCenter() {
 
   return (
     <div className="wa-inbox" data-mobile-chat={mobileChatOpen}>
-      <Card className="wa-toolbar">
-        <CardHeader className="mb-0 flex flex-row items-center justify-between gap-4 border-0 bg-none p-3">
-          <div>
-            <CardTitle>Central de Conversas</CardTitle>
-            <CardDescription className="hidden sm:block">Atendimento WhatsApp · Connecta Telecom</CardDescription>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span className={`h-2.5 w-2.5 rounded-full ${isRealtimeConnected ? "bg-emerald-500" : "bg-orange-500"}`} />
-            {currentUser?.id === "visual-preview" ? "Prévia local" : isRealtimeConnected ? "Conectado" : "Reconectando..."}
-            <Button type="button" size="sm" className="shrink-0 whitespace-nowrap" onClick={() => setIsCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              Novo número
-            </Button>
-          </div>
-        </CardHeader>
-      </Card>
-
       {statusMessage ? (
-        <div className="rounded-md border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900">{statusMessage}</div>
+        <div className="shrink-0 rounded-xl border bg-card px-4 py-3 text-sm text-foreground">{statusMessage}</div>
       ) : null}
 
       <div className="wa-columns">
         <Card className="wa-list-panel">
-          <CardHeader className="mb-0 shrink-0 rounded-none bg-none p-4">
+          <CardHeader className="mb-0 shrink-0 rounded-none border-b bg-none p-4">
+            <div className="mb-5 flex items-center justify-between gap-2">
+              <div><p className="text-lg font-semibold tracking-tight">Mensagens</p><p className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground"><span className={`h-1.5 w-1.5 rounded-full ${isRealtimeConnected ? "bg-emerald-500" : "bg-amber-500"}`} />{currentUser?.id === "visual-preview" ? "Prévia local" : isRealtimeConnected ? "Conectado" : "Reconectando…"}</p></div>
+              <Button type="button" size="icon" className="h-9 w-9 rounded-xl" aria-label="Nova conversa" title="Nova conversa" onClick={() => setIsCreateOpen(true)}><Plus className="h-4 w-4" /></Button>
+            </div>
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-slate-900">Conversas</p>
+                <p className="text-xs font-semibold text-foreground">Caixa de entrada</p>
                 <p className="text-xs text-muted-foreground">
                   {filterCards.find((item) => item.key === activeFilter)?.label ?? "Todas"} • {filterCards.find((item) => item.key === activeFilter)?.count ?? 0}
                 </p>
               </div>
               <div className="relative" ref={filterPopupRef}>
-                <Button type="button" variant="outline" className="rounded-2xl" onClick={() => setIsFilterPopupOpen((current) => !current)}>
+                <Button type="button" variant="ghost" className="h-8 rounded-lg px-2 text-xs" aria-expanded={isFilterPopupOpen} aria-controls="conversation-filters" onClick={() => setIsFilterPopupOpen((current) => !current)}>
                   <Filter className="h-4 w-4" />
                   Filtros
                 </Button>
                 {isFilterPopupOpen ? (
-                  <div className="absolute right-0 top-12 z-20 w-72 rounded-3xl border border-slate-200 bg-white p-3 shadow-2xl">
+                  <div id="conversation-filters" className="absolute right-0 top-12 z-20 w-64 max-w-[calc(100vw-3rem)] rounded-2xl border border-border bg-card p-3 shadow-2xl">
                     <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Filtrar conversas</div>
                     <div className="space-y-2">
                       {filterCards.map((filterItem) => (
@@ -664,8 +651,8 @@ export function ConversationCenter() {
                           }}
                           className={`flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left transition ${
                             activeFilter === filterItem.key
-                              ? "bg-[#0b2441] text-white"
-                              : "bg-slate-50 text-slate-700 hover:bg-slate-100"
+                              ? "bg-primary text-white"
+                              : "bg-muted/40 text-foreground hover:bg-muted"
                           }`}
                         >
                           <span className="text-sm font-medium">{filterItem.label}</span>
@@ -681,7 +668,7 @@ export function ConversationCenter() {
             </div>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
-              <Input className="pl-9" placeholder="Pesquisar conversa, número ou etiqueta" value={search} onChange={(event) => setSearch(event.target.value)} />
+              <Input aria-label="Pesquisar conversas" className="h-11 rounded-xl border-transparent bg-muted/60 pl-9 text-xs focus-visible:border-primary/30" placeholder="Pesquisar contato, número ou etiqueta" value={search} onChange={(event) => setSearch(event.target.value)} />
             </div>
           </CardHeader>
           <CardContent className="min-h-0 flex-1 p-0">
@@ -692,19 +679,20 @@ export function ConversationCenter() {
                 void handleConversationListScroll();
               }}
             >
-              {isLoading ? <p className="text-sm text-muted-foreground">Carregando conversas...</p> : null}
+              {isLoading ? <p className="p-5 text-sm text-muted-foreground">Carregando conversas...</p> : null}
               {filteredConversations.map((conversation) => (
                 <button
                   key={conversation.id}
                   type="button"
                   onClick={() => { setMobileChatOpen(true); void loadDetail(conversation.id); }}
-                  className={`wa-contact w-full border-b px-4 py-3 text-left transition-colors ${selectedId === conversation.id ? "bg-primary/10" : "hover:bg-muted/60"}`}
+                  aria-pressed={selectedId === conversation.id}
+                  className={`wa-contact relative w-full border-b border-border/40 px-4 py-4 text-left transition-colors ${selectedId === conversation.id ? "bg-primary/[0.06] before:absolute before:inset-y-3 before:left-0 before:w-[3px] before:rounded-r before:bg-primary" : "hover:bg-muted/50"}`}
                 >
                 <div className="flex items-start justify-between gap-3">
-                  <span aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-bold text-primary">{(conversation.lead?.name ?? conversation.phone).slice(0, 2).toUpperCase()}</span>
+                  <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-border/50 bg-muted text-sm font-semibold text-foreground/70">{(conversation.lead?.name ?? conversation.phone).slice(0, 2).toUpperCase()}</span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="truncate font-medium">{conversation.lead?.name ?? conversation.phone}</p>
+                      <p className="truncate text-sm font-semibold">{conversation.lead?.name ?? conversation.phone}</p>
                       {conversation.hasPendingCustomerMessage ? (
                         <span
                           className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-cyan-600 ring-2 ring-cyan-100"
@@ -717,12 +705,12 @@ export function ConversationCenter() {
                   </div>
                   <span className="text-[11px] text-muted-foreground">{formatTime(conversation.updatedAt)}</span>
                   </div>
-                  <p className="mt-1.5 truncate text-xs text-muted-foreground">{conversation.lastMessage?.body ?? "Sem mensagens ainda"}</p>
-                  <div className="mt-2 flex flex-wrap gap-1 text-[10px]">
+                  <p className="mt-1.5 pl-14 truncate text-xs text-muted-foreground">{conversation.lastMessage?.body ?? "Sem mensagens ainda"}</p>
+                  <div className="mt-2 flex flex-wrap gap-1 pl-14 text-[9px]">
                     <span className={`rounded-full px-2 py-1 ${conversation.botActive ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"}`}>
-                      {conversation.botActive ? "Cris ativa" : "Assumida"}
+                      {conversation.botActive ? "Sofia ativa" : "Assumida"}
                     </span>
-                    <span className="rounded-full bg-muted px-2 py-1">{conversation.state}</span>
+
                     {conversation.isStalled && conversation.stalledStageLabel ? (
                       <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-800">
                         Parado em: {conversation.stalledStageLabel}
@@ -747,17 +735,17 @@ export function ConversationCenter() {
 
         <Card className="wa-chat-panel">
           {!detail ? (
-            <CardContent className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              <div className="space-y-4 text-center"><MessageCircleMore className="mx-auto h-14 w-14 text-primary/40" /><p className="text-xl font-semibold">{isLoadingDetail ? "Carregando mensagens..." : "Suas conversas, mais próximas."}</p><p>{isLoadingDetail ? "Aguarde enquanto abrimos esta conversa." : "Selecione um contato para começar."}</p></div>
+            <CardContent className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
+              <div className="space-y-4 text-center"><MessageCircleMore className="mx-auto h-12 w-12 text-primary" /><p className="text-lg font-semibold text-foreground">{isLoadingDetail ? "Carregando mensagens..." : "Tudo pronto para conversar."}</p><p>{isLoadingDetail ? "Aguarde enquanto abrimos esta conversa." : "Selecione um contato para começar."}</p></div>
             </CardContent>
           ) : (
             <>
-              <CardHeader className="relative mb-0 shrink-0 rounded-none border-b bg-card bg-none p-3">
+              <CardHeader className="relative mb-0 shrink-0 rounded-none border-b bg-card bg-none px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="flex items-center gap-2"><Button type="button" variant="ghost" size="icon" className="lg:hidden" aria-label="Voltar às conversas" onClick={() => setMobileChatOpen(false)}><ArrowLeft className="h-4 w-4" /></Button><span aria-hidden="true" className="grid h-9 w-9 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">{(detail.lead?.name ?? detail.phone).slice(0, 2).toUpperCase()}</span><CardTitle>{detail.lead?.name ?? detail.phone}</CardTitle></div>
                     <CardDescription>
-                      {detail.phone} • Etapa atual: {detail.state} • {detail.agent?.name ?? "Cris"}
+                      {detail.phone} · {detail.botActive ? `${detail.agent?.name ?? "Sofia"} no atendimento` : "Atendimento com a equipe"}
                     </CardDescription>
                   </div>
                   <details className="relative">
@@ -864,7 +852,7 @@ export function ConversationCenter() {
                   ) : null}
                   {detail.messages.map((messageItem) => (
                     <div key={messageItem.id} className={`flex ${messageItem.direction === "inbound" ? "justify-start" : "justify-end"}`}>
-                      <div className={`max-w-[88%] rounded-lg px-3 py-2 text-sm leading-relaxed shadow-sm sm:max-w-[78%] ${messageItem.direction === "inbound" ? "rounded-tl-none bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100" : "rounded-tr-none bg-[#d9fdd3] text-slate-900 dark:bg-[#164b42] dark:text-slate-100"}`}>
+                      <div className={`max-w-[88%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-[0_1px_2px_rgba(0,0,0,0.06)] sm:max-w-[72%] ${messageItem.direction === "inbound" ? "rounded-tl-sm border border-border/40 bg-card text-foreground" : "rounded-tr-sm bg-[#d9fdd3] text-neutral-900 dark:bg-[#164b42] dark:text-neutral-100"}`}>
                         <p className="whitespace-pre-wrap break-words">{messageItem.body}</p>
                         <p className="mt-1 text-right text-[10px] text-slate-500 dark:text-slate-300">
                           {formatTime(messageItem.createdAt)}
@@ -908,9 +896,9 @@ export function ConversationCenter() {
                   }}
                 />
 
-                <div className="mt-auto shrink-0 space-y-2 border-t bg-card px-3 py-3">
+                <div className="mt-auto shrink-0 space-y-2 border-t border-border/60 bg-card px-4 py-3">
                   <div className="flex flex-wrap gap-1 text-[10px] text-muted-foreground">
-                    <span>{detail.botActive ? "Cris pode responder nesta conversa." : "Somente operador responde nesta conversa."}</span>
+                    <span>{detail.botActive ? "Sofia pode responder nesta conversa." : "Somente operador responde nesta conversa."}</span>
                     <span className="hidden sm:inline">•</span>
                     <span className="hidden sm:inline">{currentUser?.role === "ADMIN" ? "Administradores visualizam todas as conversas." : "Você visualiza apenas as conversas atribuídas a você."}</span>
                   </div>
@@ -929,9 +917,9 @@ export function ConversationCenter() {
                       placeholder={selectedFile ? "Digite uma legenda opcional..." : "Digite sua mensagem..."}
                       rows={1}
                       aria-label="Mensagem"
-                      className="min-h-11 max-h-32 min-w-0 flex-1 resize-y rounded-xl bg-background py-3"
+                      className="min-h-11 max-h-32 min-w-0 flex-1 resize-y rounded-2xl border-border/60 bg-muted/40 py-3"
                     />
-                    <Button type="button" size="icon" aria-label={isSending ? "Enviando mensagem" : "Enviar mensagem"} className="shrink-0 rounded-full bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => void sendMessage()} disabled={isSending}>
+                    <Button type="button" size="icon" aria-label={isSending ? "Enviando mensagem" : "Enviar mensagem"} className="h-11 w-11 shrink-0 rounded-full bg-primary text-white hover:bg-primary/90" onClick={() => void sendMessage()} disabled={isSending}>
                       <Send className="h-4 w-4" />
                       <span className="sr-only">{isSending ? "Enviando..." : "Enviar"}</span>
                     </Button>

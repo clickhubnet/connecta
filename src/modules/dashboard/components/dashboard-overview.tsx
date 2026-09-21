@@ -1,7 +1,9 @@
 "use client";
 
-import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import Link from "next/link";
+import { ArrowUpRight, TrendingUp, Layers3, Users, Trophy } from "lucide-react";
+import { Card } from "@/components/ui/card";
 
 const statusLabels: Record<string, string> = {
   NEW: "Novo",
@@ -21,7 +23,6 @@ const statusTones: Record<string, string> = {
   WON: "bg-teal-500/10 text-teal-700 dark:text-teal-300",
   LOST: "bg-rose-500/10 text-rose-700 dark:text-rose-300",
 };
-const chartColors = ["#d71920", "#ef4444", "#fca5a5", "#242428", "#6b6b6b", "#9ca3af"];
 const tooltipStyle = { borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "hsl(var(--foreground))", fontSize: 12, boxShadow: "0 8px 32px rgba(20,20,20,0.08)" };
 
 export type DashboardOverviewData = {
@@ -47,151 +48,92 @@ const currency = new Intl.NumberFormat("pt-BR", {
   currency: "BRL",
 });
 
+function SectionHeading({ title, description, icon: Icon, tone = "red" }: { title: string; description: string; icon: typeof Users; tone?: "red" | "teal" | "indigo" | "amber" }) {
+  const tones = { red: "bg-red-50 text-red-700 dark:bg-red-950/60 dark:text-red-300", teal: "bg-teal-50 text-teal-700 dark:bg-teal-950/60 dark:text-teal-300", indigo: "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300", amber: "bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300" };
+  return <div className="flex items-start gap-3"><span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ${tones[tone]}`}><Icon className="h-[18px] w-[18px]" strokeWidth={1.7} aria-hidden="true" /></span><div><h2 className="text-base font-bold tracking-tight text-foreground">{title}</h2><p className="mt-1 text-xs leading-5 text-foreground/65">{description}</p></div></div>;
+}
+
 export function DashboardOverview({ data, loading }: { data: DashboardOverviewData | null; loading: boolean }) {
-  const funnelData = statusOrder.map((status) => ({
-    status,
-    label: statusLabels[status],
-    count: data?.leadStatuses.find((item) => item.status === status)?.count ?? 0,
-  }));
-
-  const statusData = funnelData.map((item) => ({
-    name: item.label,
-    value: item.count,
-  }));
-
+  const funnelData = statusOrder.map((status) => ({ status, label: statusLabels[status], count: data?.leadStatuses.find((item) => item.status === status)?.count ?? 0 }));
+  const total = funnelData.reduce((sum, item) => sum + item.count, 0);
   const chartData = data?.leadChart ?? [];
-  const planData = data?.planSales ?? [];
+  const chartTotal = chartData.reduce((sum, item) => sum + item.count, 0);
+  const planData = [...(data?.planSales ?? [])].sort((a, b) => b.count - a.count);
+  const sales = planData.reduce((sum, item) => sum + item.count, 0);
+  const cardStyle = "overview-card relative isolate min-w-0 overflow-hidden rounded-2xl border-border/70 bg-card p-5 sm:p-6";
 
   return (
-    <div className="mt-5 space-y-4">
-      <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Evolução das oportunidades</CardTitle>
-            <CardDescription>Entradas de leads no intervalo selecionado</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ left: -20, right: 12, top: 8, bottom: 0 }}>
-                  <defs><linearGradient id="lead-area-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#225eea" stopOpacity={0.2} /><stop offset="100%" stopColor="#225eea" stopOpacity={0.01} /></linearGradient></defs>
-                  <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="4 6" vertical={false} />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={12} />
-                  <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={12} />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  <Area name="Leads" type="monotone" dataKey="count" stroke="#225eea" strokeWidth={3} fill="url(#lead-area-fill)" activeDot={{ r: 5, stroke: "white", strokeWidth: 3 }} isAnimationActive={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
+    <div className="grid items-stretch gap-5 xl:grid-cols-12">
+      <Card className={`${cardStyle} overview-red xl:col-span-8`}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <SectionHeading title="Evolução das oportunidades" description="Novos contatos ao longo do período selecionado" icon={TrendingUp} />
+          <div className="rounded-xl border border-border/60 bg-card/95 px-4 py-3 text-right"><p className="text-xl font-semibold tracking-tight tabular-nums">{loading ? "—" : chartTotal.toLocaleString("pt-BR")}</p><p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Entradas no período</p></div>
+        </div>
+        <div className="mt-7 h-64 sm:h-72">
+          {loading || !chartData.length ? <div role="status" className="grid h-full place-items-center rounded-xl bg-muted/30 text-sm text-muted-foreground">{loading ? "Carregando evolução..." : "Nenhuma oportunidade neste período."}</div> :
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart accessibilityLayer data={chartData} margin={{ left: -22, right: 8, top: 10, bottom: 0 }}>
+              <defs><linearGradient id="lead-area-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#d71920" stopOpacity={0.22} /><stop offset="100%" stopColor="#d71920" stopOpacity={0} /></linearGradient></defs>
+              <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 6" vertical={false} />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "hsl(var(--muted-foreground))" }} minTickGap={28} dy={8} />
+              <YAxis allowDecimals={false} tickLine={false} axisLine={false} fontSize={11} tick={{ fill: "hsl(var(--muted-foreground))" }} />
+              <Tooltip contentStyle={tooltipStyle} />
+              <Area name="Leads" type="monotone" dataKey="count" stroke="#d71920" strokeWidth={3} fill="url(#lead-area-fill)" activeDot={{ r: 5, stroke: "white", strokeWidth: 2 }} isAnimationActive={false} />
+            </AreaChart>
+          </ResponsiveContainer>}
+        </div>
+        <div className="mt-4 flex items-center gap-2 border-t border-border/60 pt-4 text-xs text-muted-foreground"><span className="h-2 w-2 rounded-full bg-primary" /> Oportunidades recebidas por dia</div>
+      </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Seu funil, em perspectiva</CardTitle>
-            <CardDescription>Distribuição atual dos leads por etapa</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="relative h-60">
-              {statusData.some((item) => item.value > 0) ? <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center"><strong className="text-3xl font-extrabold tracking-tight tabular-nums">{statusData.reduce((sum, item) => sum + item.value, 0).toLocaleString("pt-BR")}</strong><span className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Oportunidades</span></div> : null}
-              {!statusData.some((item) => item.value > 0) ? <div className="absolute inset-0 grid place-items-center text-sm text-muted-foreground">{loading ? "Carregando distribuição..." : "Nenhum lead neste período"}</div> : null}
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={statusData} dataKey="value" nameKey="name" innerRadius={70} outerRadius={96} paddingAngle={3} stroke="hsl(var(--card))" isAnimationActive={false}>
-                    {statusData.map((entry, index) => (
-                      <Cell key={entry.name} fill={chartColors[index % chartColors.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={tooltipStyle} />
-                </PieChart>
-              </ResponsiveContainer>
+      <Card className={`${cardStyle} overview-amber xl:col-span-4`}>
+        <SectionHeading title="Planos em destaque" description="Ranking por número de vendas concluídas" icon={Trophy} tone="amber" />
+        <div className="my-5 flex flex-wrap items-baseline gap-2 rounded-xl border border-border/60 bg-background/80 p-4"><strong className="text-xl font-semibold tabular-nums">{loading ? "—" : sales.toLocaleString("pt-BR")}</strong><span className="text-xs text-muted-foreground">vendas entre os planos listados</span></div>
+        <div className="max-h-72 space-y-5 overflow-y-auto pr-1">
+          {loading ? <p role="status" className="py-8 text-sm text-muted-foreground">Carregando planos...</p> : planData.length ? planData.map((item, index) => (
+            <div key={item.planId ?? item.planName} className="flex gap-3 rounded-xl border border-border/60 bg-card/95 p-3 transition-colors hover:border-amber-500/40">
+              <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xs font-bold ${index === 0 ? "bg-primary text-white" : "bg-muted text-muted-foreground"}`}>{String(index + 1).padStart(2, "0")}</span>
+              <div className="min-w-0 flex-1"><div className="flex flex-wrap justify-between gap-2"><p className="text-sm font-semibold">{item.planName}</p><span className="text-xs font-semibold tabular-nums">{currency.format(item.totalValue)}</span></div>
+              <div aria-hidden="true" className="my-2 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${item.count / Math.max(1, ...planData.map((plan) => plan.count)) * 100}%`, opacity: index === 0 ? 1 : 0.6 }} /></div>
+              <p className="text-[11px] text-muted-foreground">{item.count} vendas</p></div>
             </div>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {funnelData.map((item, index) => (
-                <div key={item.status} className="flex items-center justify-between rounded-md px-2 py-1.5 text-xs">
-                  <span className="flex items-center gap-2">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full"
-                      style={{ backgroundColor: chartColors[index % chartColors.length] }}
-                    />
-                    {item.label}
-                  </span>
-                  <strong>{item.count}</strong>
+          )) : <p className="py-8 text-sm text-muted-foreground">Os planos aparecerão aqui após as primeiras vendas.</p>}
+        </div>
+      </Card>
+
+      <Card className={`${cardStyle} overview-teal xl:col-span-4`}>
+        <SectionHeading title="Seu funil, em perspectiva" description="Distribuição atual das oportunidades" icon={Layers3} tone="teal" />
+        <div className="my-5 flex flex-wrap items-baseline gap-2 rounded-xl border border-border/60 bg-background/80 p-4"><strong className="text-xl font-semibold tabular-nums">{loading ? "—" : total.toLocaleString("pt-BR")}</strong><span className="text-xs text-muted-foreground">oportunidades no funil</span></div>
+        <div className="space-y-3">
+          {funnelData.map((item, index) => <div key={item.status} className="rounded-xl border border-border/60 bg-card/95 px-3 py-2.5">
+            <div className="mb-2 flex items-center justify-between text-xs"><span className="flex items-center gap-2 font-medium"><span className="text-[10px] text-muted-foreground">0{index + 1}</span>{item.label}</span><span className="tabular-nums"><strong>{loading ? "—" : item.count}</strong><span className="ml-2 text-muted-foreground">{loading ? "" : `${total ? Math.round(item.count / total * 100) : 0}%`}</span></span></div>
+            <div aria-hidden="true" className="h-2 overflow-hidden rounded-full bg-muted"><div className={`h-full rounded-full ${item.status === "WON" ? "bg-teal-600" : item.status === "LOST" ? "bg-neutral-400" : "bg-primary"}`} style={{ width: `${total ? item.count / total * 100 : 0}%` }} /></div>
+          </div>)}
+        </div>
+      </Card>
+
+      <Card className={`${cardStyle} overview-indigo xl:col-span-8`}>
+        <div className="flex flex-wrap items-start justify-between gap-4"><SectionHeading title="Últimas conexões" description="Contatos recentes e suas próximas oportunidades" icon={Users} tone="indigo" /><Link href="/leads" className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-accent">Ver leads <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" /></Link></div>
+        <div className="mt-6">
+          {loading ? <p role="status" className="py-12 text-center text-sm text-muted-foreground">Carregando contatos...</p> : data?.recentLeads.length ? <div className="space-y-2">{data.recentLeads.map((lead) => (
+            <div key={lead.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-border/50 bg-card/90 p-4 transition-colors hover:bg-muted/30 sm:flex-nowrap sm:gap-4">
+              <span aria-hidden="true" className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-indigo-50 text-xs font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">{lead.name.split(" ").filter(Boolean).slice(0, 2).map((name) => name[0]).join("")}</span>
+              <div className="min-w-0 flex-1">
+                <p className="break-words text-sm font-semibold">{lead.name}</p>
+                <p className="mt-1 text-[11px] text-muted-foreground">{lead.phone}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+                  <span className="font-medium text-foreground/80">{lead.planName ?? "Plano não definido"}</span>
+                  <span aria-hidden="true" className="h-1 w-1 rounded-full bg-muted-foreground/40" />
+                  <span className="text-muted-foreground">{lead.assignedUserName ?? "Sem responsável"}</span>
                 </div>
-              ))}
+              </div>
+              <div className="flex w-full shrink-0 items-center justify-between gap-3 border-t border-border/50 pt-3 sm:w-auto sm:flex-col sm:items-end sm:border-0 sm:pt-0">
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusTones[lead.status] ?? "bg-muted text-muted-foreground"}`}><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-current" />{statusLabels[lead.status] ?? lead.status}</span>
+                <p className="text-sm font-semibold tracking-tight tabular-nums">{currency.format(lead.expectedValue)}</p>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <Card>
-          <CardHeader>
-            <CardTitle>Últimas conexões</CardTitle>
-            <CardDescription>As oportunidades mais recentes da sua operação</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="divide-y rounded-md border">
-              {loading ? (
-                <p className="p-4 text-sm text-muted-foreground">Carregando</p>
-              ) : data?.recentLeads.length ? (
-                data.recentLeads.map((lead) => (
-                  <div key={lead.id} className="grid gap-3 p-4 text-sm transition-colors hover:bg-muted/40 md:grid-cols-[minmax(0,1fr)_130px_110px]">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/5 text-xs font-bold text-primary">{lead.name.split(" ").filter(Boolean).slice(0, 2).map((name) => name[0]).join("")}</span>
-                      <div className="min-w-0"><p className="truncate font-semibold">{lead.name}</p>
-                      <p className="mt-1 text-[11px] text-muted-foreground">{lead.phone}</p></div>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      <p>{lead.planName ?? "Sem plano"}</p>
-                      <p>{lead.assignedUserName ?? "Sem responsavel"}</p>
-                    </div>
-                    <div className="text-xs text-muted-foreground md:text-right">
-                      <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-bold ${statusTones[lead.status] ?? "bg-muted text-muted-foreground"}`}>{statusLabels[lead.status] ?? lead.status}</span>
-                      <p className="mt-1.5 font-semibold text-foreground">{currency.format(lead.expectedValue)}</p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="p-4 text-sm text-muted-foreground">Sem leads cadastrados</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Planos em destaque</CardTitle>
-            <CardDescription>Quantidade e valor total por plano fechado</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {planData.length ? (
-              planData.map((item, index) => (
-                <div key={item.planId ?? item.planName} className="rounded-md border p-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span>{item.planName}</span>
-                    <span className="font-semibold">{currency.format(item.totalValue)}</span>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">{item.count} venda(s)</p>
-                  <div className="mt-2 h-2 rounded-full bg-muted">
-                    <div
-                      className="h-2 rounded-full"
-                      style={{
-                        width: `${item.count / Math.max(1, ...planData.map((plan) => plan.count)) * 100}%`,
-                        backgroundColor: chartColors[index % chartColors.length],
-                      }}
-                    />
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                Sem planos vendidos
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+          ))}</div> : <p className="py-12 text-center text-sm text-muted-foreground">Seus novos contatos aparecerão aqui.</p>}
+        </div>
+      </Card>
     </div>
   );
 }

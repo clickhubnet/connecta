@@ -54,16 +54,16 @@ export function LoginForm() {
   return (
     <form className="space-y-5" onSubmit={handleSubmit} aria-busy={loading}>
       <label className="block space-y-2">
-        <span className="text-sm font-medium">E-mail</span>
+        <span className="text-sm font-medium">E-mail de acesso</span>
         <div className="relative">
           <Mail className="pointer-events-none absolute left-4 top-4 h-4 w-4 text-slate-400" />
           <Input
-            className="h-12 rounded-xl border-slate-200 bg-slate-50/70 pl-11 text-base text-slate-950 placeholder:text-slate-400 focus-visible:ring-red-600"
+            className="h-12 rounded-xl border-neutral-200 bg-white pl-11 text-base text-neutral-950 placeholder:text-neutral-400 transition-colors hover:border-neutral-300 focus-visible:ring-red-600"
             autoComplete="username"
             autoCapitalize="none"
             spellCheck={false}
             name="email"
-            placeholder="usuario@connectatelecom.com.br"
+            placeholder="seuemail@empresa.com.br"
             required
             type="email"
           />
@@ -74,7 +74,7 @@ export function LoginForm() {
         <div className="relative">
           <Lock className="pointer-events-none absolute left-4 top-4 h-4 w-4 text-slate-400" />
           <Input
-            className="h-12 rounded-xl border-slate-200 bg-slate-50/70 pl-11 pr-12 text-base text-slate-950 placeholder:text-slate-400 focus-visible:ring-red-600"
+            className="h-12 rounded-xl border-neutral-200 bg-white pl-11 pr-12 text-base text-neutral-950 placeholder:text-neutral-400 transition-colors hover:border-neutral-300 focus-visible:ring-red-600"
             autoComplete="current-password"
             name="password"
             placeholder="Digite sua senha"
@@ -93,9 +93,9 @@ export function LoginForm() {
         </div>
       </label>
       {error ? <p role="alert" className="rounded-xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-      <Button className="h-12 w-full justify-between rounded-xl bg-red-600 px-5 font-semibold text-white shadow-lg shadow-red-600/15 hover:bg-red-700" disabled={loading} type="submit">
-        {loading ? "Entrando..." : "Entrar na plataforma"}
-        {loading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <ArrowRight className="h-4 w-4" />}
+      <Button className="group h-12 w-full justify-between rounded-xl bg-[#d71920] px-5 font-semibold text-white shadow-lg shadow-red-600/10 transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#ba141b] hover:shadow-red-600/20 active:translate-y-0 motion-reduce:transform-none" disabled={loading} type="submit">
+        {loading ? "Acessando sua conta..." : "Acessar plataforma"}
+        {loading ? <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1 motion-reduce:transform-none" />}
       </Button>
     </form>
   );
@@ -107,6 +107,7 @@ function getStartPath(user?: LoginResult) {
   }
 
   const item = navigationItems.find((navigationItem) => {
+    if ("comingSoon" in navigationItem && navigationItem.comingSoon) return false;
     if ("adminOnly" in navigationItem && navigationItem.adminOnly) return false;
     if ("employeeVisible" in navigationItem && navigationItem.employeeVisible) return true;
     return Boolean(user?.permissions?.[navigationItem.permission]);

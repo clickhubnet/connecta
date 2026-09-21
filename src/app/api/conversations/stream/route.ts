@@ -28,11 +28,8 @@ export async function GET(request: Request) {
         const onNotification = (message: { channel?: string; payload?: string }) => {
           if (message.channel !== channel || !message.payload) return;
 
-          try {
-            send("conversation-update", JSON.parse(message.payload));
-          } catch {
-            send("conversation-update", { raw: message.payload });
-          }
+          // Events only invalidate the list; protected APIs return authorized data.
+          send("conversation-update", { refresh: true });
         };
 
         client.on("notification", onNotification);

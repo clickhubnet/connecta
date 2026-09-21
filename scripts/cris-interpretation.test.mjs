@@ -38,7 +38,7 @@ for (const state of states) {
 
 test('price objection does not become a name and stays in context', async () => {
   const { engine, calls } = setup({ intent: 'objection', value: null, question: null });
-  const next = await engine.nextResponse({ ...input('ASK_NAME', 'quero uma internet mais barata'), history: [{ role: 'Cris', text: 'Qual é o seu nome completo?' }] });
+  const next = await engine.nextResponse({ ...input('ASK_NAME', 'quero uma internet mais barata'), history: [{ role: 'Sofia', text: 'Qual é o seu nome completo?' }] });
   assert.equal(next.state, 'ASK_NAME');
   assert.equal(next.memory.name, undefined);
   assert.deepEqual(next.memory.customerRemarks, ['quero uma internet mais barata']);

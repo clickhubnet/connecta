@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { MetricCard } from "@/components/cards/metric-card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useApiResource } from "@/hooks/use-api-resource";
@@ -39,10 +40,10 @@ const defaultSteps: FlowStep[] = [
 
 const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 
-export function AgentCenter() {
+export function AgentCenter({ initialTab = "agents", standalone = false }: { initialTab?: Tab; standalone?: boolean }) {
   const plans = useApiResource<PlanItem[]>("/api/plans");
   const agents = useApiResource<AgentItem[]>("/api/agents");
-  const [tab, setTab] = useState<Tab>("agents");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [modal, setModal] = useState<null | "agent" | "plan" | "openai">(null);
   const [editingAgent, setEditingAgent] = useState<AgentItem | null>(null);
   const [editingPlan, setEditingPlan] = useState<PlanItem | null>(null);
@@ -82,13 +83,20 @@ export function AgentCenter() {
     { id: "agents" as const, label: "Agentes", icon: Bot },
     { id: "plans" as const, label: "Planos", icon: CircleDollarSign },
     { id: "openai" as const, label: "OpenAI", icon: BrainCircuit },
-    { id: "flow" as const, label: "N8N", icon: Workflow },
+    { id: "flow" as const, label: "Fluxo de Mensagens", icon: Workflow },
   ];
 
-  return <div className="space-y-5">
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b">
+  const descriptions = { agents: "Sua equipe de atendimento virtual", plans: "Organize seu catálogo comercial", openai: "Modelos e regras de atendimento", flow: "Organize cada etapa da conversa" };
+  const currentTab = tabs.find((item) => item.id === tab)!;
+  const agentItems = agents.data ?? [];
+  const planItems = plans.data ?? [];
+  const loading = tab === "plans" ? plans.loading : agents.loading;
+
+  return <div className="management-page sales-center space-y-5">
+    <div className="management-toolbar flex flex-wrap items-center justify-between gap-3">
+      {standalone && <div className="flex items-center gap-3"><span className="management-heading-icon"><currentTab.icon className="h-5 w-5" /></span><div><h2 className="text-sm font-semibold">{currentTab.label}</h2><p className="mt-1 text-xs text-muted-foreground">{descriptions[tab]}</p></div></div>}
       <div className="flex overflow-x-auto">
-        {tabs.map((item) => <button key={item.id} onClick={() => { setTab(item.id); setQuery(""); }}
+        {(standalone ? [] : tabs).map((item) => <button key={item.id} onClick={() => { setTab(item.id); setQuery(""); }}
           className={`flex h-12 items-center gap-2 border-b-2 px-5 text-sm font-medium ${tab === item.id ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
           <item.icon className="h-4 w-4" />{item.label}
         </button>)}
@@ -99,25 +107,42 @@ export function AgentCenter() {
     </div>
 
     {notice && <p className="rounded-md border bg-card px-4 py-3 text-sm">{notice}</p>}
+    {(agents.error || plans.error) && <p role="alert" className="rounded-xl border border-destructive/20 bg-card p-4 text-sm text-destructive">{agents.error || plans.error}</p>}
+
+    {tab !== "flow" && <div className="grid gap-4 sm:grid-cols-3">
+      {tab === "agents" ? <>
+        <MetricCard title="Agentes" value={loading ? "..." : String(agentItems.length)} helper="Equipe virtual cadastrada" icon={Bot} />
+        <MetricCard title="Ativos" value={loading ? "..." : String(agentItems.filter((item) => item.active).length)} helper="Agentes habilitados" icon={Check} tone="teal" />
+        <MetricCard title="Planos vinculados" value={loading ? "..." : String(new Set(agentItems.flatMap((item) => item.plans.map((plan) => plan.id))).size)} helper="Catálogo disponível aos agentes" icon={CircleDollarSign} tone="indigo" />
+      </> : tab === "plans" ? <>
+        <MetricCard title="Planos" value={loading ? "..." : String(planItems.length)} helper="Itens no catálogo" icon={CircleDollarSign} />
+        <MetricCard title="Ativos" value={loading ? "..." : String(planItems.filter((item) => item.active).length)} helper="Disponíveis para comercialização" icon={Check} tone="teal" />
+        <MetricCard title="Valor médio" value={loading ? "..." : money.format(planItems.length ? planItems.reduce((sum, item) => sum + Number(item.price), 0) / planItems.length : 0)} helper="Média dos preços cadastrados" icon={CircleDollarSign} tone="amber" />
+      </> : <>
+        <MetricCard title="Agentes" value={loading ? "..." : String(agentItems.length)} helper="Configurações de inteligência" icon={BrainCircuit} />
+        <MetricCard title="Modelo próprio" value={loading ? "..." : String(agentItems.filter((item) => item.openAiModel).length)} helper="Agentes com modelo específico" icon={Bot} tone="indigo" />
+        <MetricCard title="Regras" value={loading ? "..." : String(agentItems.reduce((sum, item) => sum + Object.keys(item.rules || {}).length, 0))} helper="Orientações de atendimento" icon={Workflow} tone="teal" />
+      </>}
+    </div>}
 
     {(tab === "agents" || tab === "plans") && <SearchBox value={query} onChange={setQuery} placeholder={tab === "agents" ? "Pesquisar agentes" : "Pesquisar planos"} />}
 
     {tab === "agents" && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {filteredAgents.map((agent) => <AgentCard key={agent.id} agent={agent}
         onEdit={() => { setEditingAgent(agent); setModal("agent"); }} onDelete={() => remove("agents", agent.id)} />)}
-      {!filteredAgents.length && <Empty text="Nenhum agente cadastrado" />}
+      {!filteredAgents.length && <Empty text={loading ? "Carregando agentes..." : query ? "Nenhum agente encontrado para esta pesquisa" : "Cadastre seu primeiro agente para começar"} />}
     </div>}
 
     {tab === "plans" && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {filteredPlans.map((plan) => <PlanCard key={plan.id} plan={plan}
         onEdit={() => { setEditingPlan(plan); setModal("plan"); }} onDelete={() => remove("plans", plan.id)} />)}
-      {!filteredPlans.length && <Empty text="Nenhum plano cadastrado" />}
+      {!filteredPlans.length && <Empty text={loading ? "Carregando planos..." : query ? "Nenhum plano encontrado para esta pesquisa" : "Cadastre seu primeiro plano para montar o catálogo"} />}
     </div>}
 
-    {tab === "openai" && <OpenAiPanel agents={agents.data ?? []} onEdit={(agent) => { setEditingAgent(agent); setModal("agent"); }} />}
-    {tab === "flow" && <FlowEditor agents={agents.data ?? []} onSave={async (agent, steps) => {
+    {tab === "openai" && (loading ? <Empty text="Carregando configurações..." /> : <OpenAiPanel agents={agents.data ?? []} onEdit={(agent) => { setEditingAgent(agent); setModal("agent"); }} />)}
+    {tab === "flow" && (loading ? <Empty text="Carregando fluxos..." /> : <FlowEditor agents={agents.data ?? []} onSave={async (agent, steps) => {
       await request(`/api/agents/${agent.id}`, "PUT", { flow: { steps } }); await agents.refresh();
-    }} />}
+    }} />)}
 
     {modal === "agent" && <AgentModal agent={editingAgent} plans={plans.data ?? []} saving={saving} onClose={() => setModal(null)} onSave={saveAgent} />}
     {modal === "plan" && <PlanModal plan={editingPlan} saving={saving} onClose={() => setModal(null)} onSave={savePlan} />}
@@ -126,30 +151,31 @@ export function AgentCenter() {
 }
 
 function AgentCard({ agent, onEdit, onDelete }: { agent: AgentItem; onEdit: () => void; onDelete: () => void }) {
-  return <Card className="overflow-hidden"><CardContent className="p-0">
+  return <Card className="management-surface sales-profile"><CardContent className="p-0">
     <button className="w-full p-5 text-left" onClick={onEdit}>
-      <div className="flex items-start justify-between gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-md bg-primary/15"><Bot className="h-6 w-6 text-primary" /></div>
+      <div className="flex items-start justify-between gap-3"><div className="sales-avatar"><Bot className="h-6 w-6" /></div>
         <span className={`rounded-full px-2 py-1 text-xs ${agent.active ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"}`}>{agent.active ? "Ativo" : "Inativo"}</span></div>
       <h3 className="mt-4 font-semibold">{agent.name}</h3><p className="mt-1 line-clamp-2 min-h-10 text-sm text-muted-foreground">{agent.personality}</p>
-      <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground"><span>{agent.gender === "FEMALE" ? "Feminino" : "Masculino"}</span><span>•</span><span>{agent.plans.length} planos</span><span>•</span><span>WhatsApp Meta global</span></div>
+      <div className="mt-5 grid grid-cols-2 gap-3 rounded-xl bg-muted/40 p-3 text-xs"><div><p className="text-muted-foreground">Catálogo</p><p className="mt-1 font-medium">{agent.plans.length} planos</p></div><div><p className="text-muted-foreground">Inteligência</p><p className="mt-1 truncate font-medium">{agent.openAiModel || "Modelo global"}</p></div></div>
     </button>
     <div className="flex justify-end gap-2 border-t px-4 py-3"><Button size="sm" variant="ghost" onClick={onEdit}><Pencil className="h-4 w-4" />Editar</Button><Button size="icon" variant="ghost" aria-label="Excluir agente" onClick={onDelete}><Trash2 className="h-4 w-4 text-destructive" /></Button></div>
   </CardContent></Card>;
 }
 
 function PlanCard({ plan, onEdit, onDelete }: { plan: PlanItem; onEdit: () => void; onDelete: () => void }) {
-  return <Card><CardContent className="p-5"><div className="flex items-start justify-between gap-3"><div><p className="text-sm text-muted-foreground">Plano</p><h3 className="mt-1 font-semibold">{plan.name}</h3></div><span className={`rounded-full px-2 py-1 text-xs ${plan.active ? "bg-emerald-100 text-emerald-700" : "bg-muted"}`}>{plan.active ? "Ativo" : "Inativo"}</span></div>
-    <p className="mt-4 text-2xl font-semibold">{money.format(Number(plan.price))}</p><p className="mt-2 line-clamp-2 min-h-10 text-sm text-muted-foreground">{plan.description || "Sem descrição"}</p>
+  return <Card className="management-surface sales-profile"><CardContent className="p-5"><div className="flex items-start justify-between gap-3"><span className="sales-avatar"><CircleDollarSign className="h-6 w-6" /></span><span className={`rounded-full px-2 py-1 text-xs ${plan.active ? "bg-emerald-100 text-emerald-700" : "bg-muted"}`}>{plan.active ? "Ativo" : "Inativo"}</span></div><h3 className="mt-4 font-semibold">{plan.name}</h3>
+    <div className="my-4 rounded-xl border border-primary/10 bg-primary/[.025] p-4"><p className="text-xs text-muted-foreground">Valor do plano</p><p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{money.format(Number(plan.price))}</p>{plan.speed && <p className="mt-2 text-xs font-medium text-primary">{plan.speed}</p>}</div><p className="mt-2 line-clamp-2 min-h-10 text-sm text-muted-foreground">{plan.description || "Sem descrição"}</p>
     <div className="mt-4 flex justify-end gap-2 border-t pt-3"><Button size="sm" variant="ghost" onClick={onEdit}><Pencil className="h-4 w-4" />Editar</Button><Button size="icon" variant="ghost" aria-label="Excluir plano" onClick={onDelete}><Trash2 className="h-4 w-4 text-destructive" /></Button></div>
   </CardContent></Card>;
 }
 
 function OpenAiPanel({ agents, onEdit }: { agents: AgentItem[]; onEdit: (agent: AgentItem) => void }) {
-  return <div><div className="mb-4"><h2 className="font-semibold">Inteligência dos agentes</h2><p className="text-sm text-muted-foreground">Personalidade, regras e modelo aplicados nas respostas.</p></div>
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{agents.map((agent) => <Card key={agent.id} className="cursor-pointer hover:border-primary/60" onClick={() => onEdit(agent)}><CardContent className="p-5">
-      <div className="flex items-center gap-3"><BrainCircuit className="h-6 w-6 text-primary" /><div><h3 className="font-semibold">{agent.name}</h3><p className="text-xs text-muted-foreground">{agent.openAiModel || "Modelo global"}</p></div></div>
-      <p className="mt-4 line-clamp-3 text-sm text-muted-foreground">{agent.personality}</p><div className="mt-4 flex items-center justify-between border-t pt-3 text-sm"><span>{Object.keys(agent.rules || {}).length} regras configuradas</span><ChevronRight className="h-4 w-4" /></div>
-    </CardContent></Card>)}</div></div>;
+  return <div className="space-y-4"><div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Inteligência dos agentes</h2><span className="text-xs text-muted-foreground">Configuração por agente</span></div>
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{agents.map((agent) => <Card key={agent.id} className="management-surface sales-profile"><CardContent className="p-5">
+      <div className="flex items-center gap-3"><span className="sales-avatar"><BrainCircuit className="h-6 w-6" /></span><div><h3 className="font-semibold">{agent.name}</h3><p className="mt-1 text-xs text-muted-foreground">{agent.active ? "Agente ativo" : "Agente inativo"}</p></div></div>
+      <div className="mt-5 rounded-xl bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Modelo de linguagem</p><p className="mt-1 text-sm font-semibold">{agent.openAiModel || "Modelo global"}</p></div>
+      <p className="mt-4 line-clamp-3 min-h-16 text-sm leading-relaxed text-muted-foreground">{agent.personality}</p><div className="mt-4 flex items-center justify-between gap-2 border-t pt-3"><span className="text-xs text-muted-foreground">{Object.keys(agent.rules || {}).length} regras</span><Button variant="ghost" size="sm" onClick={() => onEdit(agent)}>Configurar<ChevronRight className="h-4 w-4" /></Button></div>
+    </CardContent></Card>)}{!agents.length && <Empty text="Cadastre um agente para configurar sua inteligência" />}</div></div>;
 }
 
 function FlowEditor({ agents, onSave }: { agents: AgentItem[]; onSave: (agent: AgentItem, steps: FlowStep[]) => Promise<void> }) {
@@ -163,12 +189,12 @@ function FlowEditor({ agents, onSave }: { agents: AgentItem[]; onSave: (agent: A
   const setSteps = (next: FlowStep[]) => setDrafts((value) => ({ ...value, [selected.id]: next }));
   function drop(index: number) { if (dragIndex === null || dragIndex === index) return; const next = [...steps]; const [item] = next.splice(dragIndex, 1); next.splice(index, 0, item); setSteps(next); setDragIndex(null); }
   return <div className="space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Fluxo de mensagens</h2><p className="text-sm text-muted-foreground">Arraste os blocos para alterar a ordem de execução.</p></div><div className="flex gap-2"><select className="h-10 rounded-md border bg-background px-3 text-sm" value={selected.id} onChange={(e) => setAgentId(e.target.value)}>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</select><Button variant="outline" onClick={() => setEditing({ id: crypto.randomUUID(), state: `CUSTOM_${Date.now()}`, title: "Nova mensagem", message: "" })}><Plus className="h-4 w-4" />Mensagem</Button><Button onClick={() => onSave(selected, steps)}><Save className="h-4 w-4" />Salvar fluxo</Button></div></div>
-    <div className="min-h-[510px] overflow-x-auto rounded-md border bg-slate-100 p-8 dark:bg-slate-950"><div className="flex min-w-max items-center py-28">
+    <div className="management-toolbar flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold">Jornada de atendimento</h2><p className="mt-1 text-xs text-muted-foreground">{steps.length} etapas · Arraste os blocos para reorganizar.</p></div><div className="flex flex-wrap gap-2"><select aria-label="Agente do fluxo" className="h-10 rounded-md border bg-background px-3 text-sm" value={selected.id} onChange={(e) => setAgentId(e.target.value)}>{agents.map((agent) => <option key={agent.id} value={agent.id}>{agent.name}</option>)}</select><Button variant="outline" onClick={() => setEditing({ id: crypto.randomUUID(), state: `CUSTOM_${Date.now()}`, title: "Nova mensagem", message: "" })}><Plus className="h-4 w-4" />Mensagem</Button><Button onClick={() => onSave(selected, steps)}><Save className="h-4 w-4" />Salvar fluxo</Button></div></div>
+    <div className="sales-flow-canvas overflow-x-auto rounded-2xl border p-6 sm:p-8"><div className="flex min-w-max items-center py-12 sm:py-20">
       {steps.map((step, index) => <div key={step.id} className="flex items-center" onDragOver={(e) => e.preventDefault()} onDrop={() => drop(index)}>
-        {index > 0 && <div className="relative h-0.5 w-20 bg-cyan-500"><span className="absolute -right-1 -top-1.5 h-3 w-3 rounded-full border-2 border-cyan-500 bg-white" /></div>}
-        <div draggable onDragStart={() => setDragIndex(index)} className="w-64 cursor-grab rounded-md border bg-card shadow-lg active:cursor-grabbing">
-          <div className="flex items-center justify-between border-b px-3 py-2"><div className="flex items-center gap-2"><GripVertical className="h-4 w-4 text-muted-foreground" /><span className="text-xs font-medium text-cyan-600">{step.state}</span></div><div className="flex"><button className="p-1" title="Editar mensagem" onClick={() => setEditing(step)}><Pencil className="h-4 w-4" /></button><button className="p-1" title="Excluir mensagem" onClick={() => setSteps(steps.filter((item) => item.id !== step.id))}><Trash2 className="h-4 w-4 text-destructive" /></button></div></div>
+        {index > 0 && <div aria-hidden="true" className="relative h-0.5 w-12 bg-primary/40"><ChevronRight className="absolute -right-1 -top-2 h-4 w-4 text-primary" /></div>}
+        <div draggable onDragStart={() => setDragIndex(index)} onDragEnd={() => setDragIndex(null)} className="sales-flow-step w-72 cursor-grab overflow-hidden rounded-2xl border bg-card active:cursor-grabbing">
+          <div className="flex items-center justify-between border-b bg-primary/[.035] px-4 py-3"><div className="flex items-center gap-2"><GripVertical className="h-4 w-4 text-muted-foreground" /><span className="text-xs font-semibold text-primary">Etapa {String(index + 1).padStart(2, "0")}</span></div><div className="flex"><button className="rounded-lg p-2 hover:bg-muted" title="Editar mensagem" onClick={() => setEditing(step)}><Pencil className="h-4 w-4" /></button><button className="rounded-lg p-2 hover:bg-muted" title="Excluir mensagem" onClick={() => setSteps(steps.filter((item) => item.id !== step.id))}><Trash2 className="h-4 w-4 text-destructive" /></button></div></div>
           <div className="p-4"><h3 className="font-semibold">{step.title}</h3><p className="mt-2 line-clamp-4 text-sm text-muted-foreground">{step.message}</p></div><div className="border-t px-3 py-2 text-xs text-muted-foreground">Mensagem #{index + 1}</div>
         </div>
       </div>)}
@@ -202,11 +228,11 @@ function OpenAiCredentials({ saving, onClose, onSave }: { saving: boolean; onClo
   return <Modal title="Credenciais OpenAI" onClose={onClose}><form className="space-y-3" onSubmit={async (e) => { e.preventDefault(); const f = new FormData(e.currentTarget); const key = String(f.get("openAiApiKey") || ""); const payload: Record<string, string> = { openAiModel: String(f.get("openAiModel") || "gpt-4o-mini") }; if (key) payload.openAiApiKey = key; await onSave(payload); }}><div className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">A chave é compartilhada por todos os agentes e nunca é exibida nesta tela.</div><Input name="openAiApiKey" type="password" placeholder="Nova chave da OpenAI" /><Input name="openAiModel" defaultValue="gpt-4o-mini" placeholder="Modelo padrão" /><Button className="w-full" disabled={saving}><KeyRound className="h-4 w-4" />Atualizar credenciais</Button></form></Modal>;
 }
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) { return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-md border bg-background shadow-2xl"><div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-5 py-4"><h2 className="font-semibold">{title}</h2><Button size="icon" variant="ghost" onClick={onClose} aria-label="Fechar"><X className="h-5 w-5" /></Button></div><div className="p-5">{children}</div></div></div>; }
-function Section({ title, children }: { title: string; children: ReactNode }) { return <fieldset className="space-y-3"><legend className="mb-2 text-sm font-semibold">{title}</legend>{children}</fieldset>; }
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) { return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><div role="dialog" aria-modal="true" aria-label={title} className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border bg-background shadow-2xl"><div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-6 py-4"><h2 className="font-semibold">{title}</h2><Button size="icon" variant="ghost" onClick={onClose} aria-label="Fechar"><X className="h-5 w-5" /></Button></div><div className="p-6">{children}</div></div></div>; }
+function Section({ title, children }: { title: string; children: ReactNode }) { return <fieldset className="space-y-3 rounded-xl border bg-card p-4"><legend className="px-2 text-sm font-semibold">{title}</legend>{children}</fieldset>; }
 function CheckBox({ name, label, checked }: { name: string; label: string; checked: boolean }) { return <label className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"><input name={name} type="checkbox" defaultChecked={checked} />{label}</label>; }
 function SearchBox({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) { return <div className="relative max-w-md"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input className="pl-9" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} /></div>; }
-function Empty({ text }: { text: string }) { return <div className="col-span-full rounded-md border border-dashed p-10 text-center text-sm text-muted-foreground">{text}</div>; }
+function Empty({ text }: { text: string }) { return <div role="status" className="col-span-full flex min-h-48 flex-col items-center justify-center gap-4 rounded-2xl border border-dashed bg-card p-10 text-center text-sm text-muted-foreground"><span className="management-heading-icon"><Workflow className="h-5 w-5" /></span>{text}</div>; }
 function rulesText(rules?: Record<string, unknown>) {
   const legacyRules: Record<string, string> = {
     neverSayAi: "Nunca informar ao cliente que é uma inteligência artificial.",

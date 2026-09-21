@@ -3,24 +3,20 @@
 import { FormEvent, ReactNode, useMemo, useState } from "react";
 import {
   Ban,
-  CalendarDays,
   CheckCircle2,
-  ChevronDown,
-  ChevronsUpDown,
-  Ellipsis,
-  Filter,
   KeyRound,
   Pencil,
   Plus,
-  Printer,
   Search,
   ShieldCheck,
   Trash2,
   UserCog,
   X,
 } from "lucide-react";
+import { MetricCard } from "@/components/cards/metric-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { navigationItems, navigationGroups, canAccessPage } from "@/config/navigation";
 import { permissions } from "@/constants/permissions";
 import { useApiResource } from "@/hooks/use-api-resource";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -37,15 +33,15 @@ type UserItem = {
   lastLoginAt?: string | null;
 };
 
-type CategoryKey = "all" | "admin" | "supplier" | "blocked" | "untitled";
+type CategoryKey = "all" | "admin" | "employee" | "blocked" | "untitled";
 
 const permissionGroups = [
   { title: "Dashboard", access: permissions.dashboardView, items: [[permissions.dashboardView, "Acessar Dashboard"], [permissions.dashboardEdit, "Editar informações"]] },
   { title: "Leads", access: permissions.leadsView, items: [[permissions.leadsView, "Acessar Leads"], [permissions.leadsCreate, "Cadastrar leads"], [permissions.leadsEdit, "Editar leads"], [permissions.leadsDelete, "Excluir leads"], [permissions.leadsMoveKanban, "Mover no Kanban"], [permissions.leadsExport, "Exportar planilha"]] },
   { title: "Compromissos", access: permissions.appointmentsView, items: [[permissions.appointmentsView, "Acessar Compromissos"], [permissions.appointmentsCreate, "Criar compromissos"], [permissions.appointmentsEdit, "Editar compromissos"], [permissions.appointmentsDelete, "Excluir compromissos"]] },
   { title: "Despesas", access: permissions.expensesView, items: [[permissions.expensesView, "Acessar Despesas"], [permissions.expensesEdit, "Cadastrar e editar despesas"], [permissions.expensesDelete, "Excluir despesas"]] },
-  { title: "CEPs", access: permissions.cepsView, items: [[permissions.cepsView, "Consultar cobertura de CEPs"]] },
-  { title: "N8N", access: permissions.agentsEdit, items: [[permissions.agentsEdit, "Acessar N8N"], [permissions.agentsCreate, "Cadastrar agentes"], [permissions.plansEdit, "Editar planos"], [permissions.openAiEdit, "Configurar OpenAI"]] },
+  { title: "Cobertura", access: permissions.cepsView, items: [[permissions.cepsView, "Consultar cobertura de CEPs"]] },
+  { title: "Agentes e planos", access: permissions.agentsEdit, items: [[permissions.agentsEdit, "Acessar agentes"], [permissions.agentsCreate, "Cadastrar agentes"], [permissions.plansEdit, "Editar planos"], [permissions.openAiEdit, "Configurar OpenAI"]] },
   { title: "Configurações", access: permissions.settingsView, items: [[permissions.settingsView, "Acessar Configurações"], [permissions.settingsEdit, "Editar configurações"]] },
 ] as const;
 
@@ -64,15 +60,15 @@ export function UserManagement() {
   const users = usersResource.data ?? [];
   const categories = useMemo(() => {
     const adminCount = users.filter((user) => user.role === "ADMIN").length;
-    const supplierCount = users.filter((user) => user.role === "EMPLOYEE").length;
+    const employeeCount = users.filter((user) => user.role === "EMPLOYEE").length;
     const blockedCount = users.filter((user) => user.status === "BLOCKED").length;
     const untitledCount = users.filter((user) => !user.title?.trim()).length;
 
     return [
-      { key: "all" as const, label: "todos", count: users.length },
-      { key: "admin" as const, label: "administrador", count: adminCount },
-      { key: "supplier" as const, label: "fornecedor", count: supplierCount },
-      { key: "blocked" as const, label: "bloqueado", count: blockedCount },
+      { key: "all" as const, label: "Todos", count: users.length },
+      { key: "admin" as const, label: "Administradores", count: adminCount },
+      { key: "employee" as const, label: "Funcionários", count: employeeCount },
+      { key: "blocked" as const, label: "Bloqueados", count: blockedCount },
       { key: "untitled" as const, label: "sem cargo", count: untitledCount },
     ];
   }, [users]);
@@ -83,7 +79,7 @@ export function UserManagement() {
     return users
       .filter((user) => {
         if (category === "admin") return user.role === "ADMIN";
-        if (category === "supplier") return user.role === "EMPLOYEE";
+        if (category === "employee") return user.role === "EMPLOYEE";
         if (category === "blocked") return user.status === "BLOCKED";
         if (category === "untitled") return !user.title?.trim();
         return true;
@@ -144,244 +140,61 @@ export function UserManagement() {
   }
 
   return (
-    <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(15,23,42,0.08)]">
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <span>início</span>
-              <span>=</span>
-              <span>cadastros</span>
-              <span className="font-semibold text-slate-900">clientes e fornecedores</span>
-            </div>
-            <div>
-              <h2 className="text-3xl font-semibold tracking-tight text-slate-950">Clientes e Fornecedores</h2>
-              <p className="mt-1 text-sm text-slate-500">Visual unificado de cadastros com foco em fornecedores.</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button type="button" variant="outline" className="h-11 rounded-full border-slate-200 px-4 text-slate-700">
-              <Printer className="h-4 w-4" />
-              Imprimir
-            </Button>
-            <Button type="button" onClick={() => setEditing(null)} className="h-11 rounded-full bg-red-600 px-5 text-white hover:bg-red-700">
-              <Plus className="h-4 w-4" />
-              Incluir cadastro
-            </Button>
-            <Button type="button" variant="outline" className="h-11 rounded-full border-slate-200 px-4 text-slate-700">
-              mais ações
-              <Ellipsis className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-
-        {notice && <p className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">{notice}</p>}
-
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[320px] flex-1">
-            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <Input
-              className="h-12 rounded-2xl border-slate-200 bg-white pl-11 pr-14 text-base shadow-none"
-              value={query}
-              onChange={(event) => changeQuery(event.target.value)}
-              placeholder="Pesquise por nome, cód., fantasia, email ou CPF/CNPJ"
-            />
-            <button
-              type="button"
-              className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl border border-slate-200 text-slate-500"
-              aria-label="Filtros rápidos"
-            >
-              <Filter className="h-4 w-4" />
-            </button>
-          </div>
-          <ToolbarChip icon={<CalendarDays className="h-4 w-4" />} label="por data do cadastro" />
-          <ToolbarChip icon={<ChevronsUpDown className="h-4 w-4" />} label="nome" />
-          <ToolbarChip label="por situação" />
-          <ToolbarChip icon={<Filter className="h-4 w-4" />} label="filtros" />
-        </div>
-
-        <div className="flex flex-wrap items-end gap-8 border-b border-slate-200 pb-4">
-          {categories.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              onClick={() => changeCategory(item.key)}
-              className={`min-w-[96px] border-b-2 pb-2 text-left transition ${
-                category === item.key
-                  ? "border-slate-900 text-slate-950"
-                  : "border-transparent text-slate-400 hover:text-slate-700"
-              }`}
-            >
-              <span className="block text-[15px] font-medium capitalize">{item.label}</span>
-              <span className={`block text-3xl leading-none ${category === item.key ? "text-slate-950" : "text-slate-500"}`}>
-                {String(item.count).padStart(2, "0")}
-              </span>
-            </button>
-          ))}
-          <button
-            type="button"
-            className="ml-auto inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-600"
-          >
-            mais
-            <Ellipsis className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="overflow-hidden rounded-[24px] border border-slate-200">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left">
-              <thead className="bg-slate-50 text-sm text-slate-500">
-                <tr className="border-b border-slate-200">
-                  <th className="w-14 px-4 py-4">
-                    <input type="checkbox" className="h-4 w-4 rounded border-slate-300" />
-                  </th>
-                  <th className="px-4 py-4 font-medium">Nome</th>
-                  <th className="px-4 py-4 font-medium">CPF/CNPJ</th>
-                  <th className="px-4 py-4 font-medium">Cidade</th>
-                  <th className="px-4 py-4 font-medium">Contato</th>
-                  <th className="px-4 py-4 font-medium">Tipo</th>
-                  <th className="px-4 py-4 text-right font-medium">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white text-[15px] text-slate-800">
-                {usersResource.loading ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-10 text-center text-slate-500">Carregando cadastros</td>
-                  </tr>
-                ) : null}
-
-                {!usersResource.loading && paginated.map((user) => (
-                  <tr key={user.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50/70">
-                    <td className="px-4 py-5 align-top">
-                      <div className="flex items-center gap-3">
-                        <input type="checkbox" className="h-4 w-4 rounded border-slate-300" />
-                        <button
-                          type="button"
-                          className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500"
-                          onClick={() => setEditing(user)}
-                          aria-label={`Abrir ações de ${user.name}`}
-                        >
-                          <Ellipsis className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-4 py-5 align-top">
-                      <div className="space-y-1">
-                        <p className="font-medium text-slate-900">
-                          {user.name}
-                          {user.id === currentUser.data?.id ? <span className="ml-2 text-xs text-red-600">Você</span> : null}
-                        </p>
-                        <p className="text-sm text-slate-500">{user.title || "Sem cargo informado"}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-5 align-top text-slate-700">{formatCpfCnpjLike(user.phone, user.email)}</td>
-                    <td className="px-4 py-5 align-top text-slate-700">{inferCity(user)}</td>
-                    <td className="px-4 py-5 align-top">
-                      <div className="space-y-1 text-slate-700">
-                        <p>{user.email}</p>
-                        <p>{user.phone || "Sem telefone"}</p>
-                      </div>
-                    </td>
-                    <td className="px-4 py-5 align-top">
-                      <div className="space-y-2">
-                        <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                          {user.role === "ADMIN" ? "administrador" : "fornecedor"}
-                        </span>
-                        <div>
-                          <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${
-                            user.status === "ACTIVE"
-                              ? "bg-emerald-50 text-emerald-700"
-                              : "bg-rose-50 text-rose-700"
-                          }`}>
-                            {user.status === "ACTIVE" ? <CheckCircle2 className="h-3 w-3" /> : <Ban className="h-3 w-3" />}
-                            {user.status === "ACTIVE" ? "ativo" : "bloqueado"}
-                          </span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-5 align-top">
-                      <div className="flex justify-end gap-2">
-                        <IconAction title="Editar cadastro" onClick={() => setEditing(user)}>
-                          <Pencil className="h-4 w-4" />
-                        </IconAction>
-                        <IconAction
-                          title={user.status === "ACTIVE" ? "Bloquear cadastro" : "Desbloquear cadastro"}
-                          onClick={() => toggleBlock(user)}
-                          disabled={user.id === currentUser.data?.id}
-                        >
-                          {user.status === "ACTIVE" ? <Ban className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}
-                        </IconAction>
-                        <IconAction
-                          title="Excluir cadastro"
-                          onClick={() => remove(user)}
-                          disabled={user.id === currentUser.data?.id}
-                          destructive
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </IconAction>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-
-                {!usersResource.loading && !paginated.length ? (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-10 text-center text-slate-500">Nenhum cadastro encontrado</td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
-          {Array.from({ length: Math.min(totalPages, 5) }, (_, index) => {
-            const itemPage = index + 1;
-            return (
-              <button
-                key={itemPage}
-                type="button"
-                onClick={() => setPage(itemPage)}
-                className={`flex h-9 min-w-9 items-center justify-center rounded-full px-3 ${
-                  safePage === itemPage ? "bg-slate-900 text-white" : "hover:bg-slate-100"
-                }`}
-              >
-                {String(itemPage).padStart(2, "0")}
-              </button>
-            );
-          })}
-          {totalPages > 5 ? <span className="px-1">...</span> : null}
-          {totalPages > 5 ? (
-            <button
-              type="button"
-              onClick={() => setPage(totalPages)}
-              className={`flex h-9 min-w-9 items-center justify-center rounded-full px-3 ${
-                safePage === totalPages ? "bg-slate-900 text-white" : "hover:bg-slate-100"
-              }`}
-            >
-              {String(totalPages).padStart(2, "0")}
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-            className="ml-2 flex h-9 items-center justify-center rounded-full px-3 hover:bg-slate-100"
-          >
-            →
-          </button>
-        </div>
+    <div className="management-page space-y-5">
+      <div className="management-toolbar flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3"><span className="management-heading-icon"><UserCog className="h-5 w-5" /></span><div><h2 className="text-sm font-semibold">Gestão de usuários</h2><p className="mt-1 text-xs text-muted-foreground">Organize sua equipe e controle os acessos.</p></div></div>
+        <Button onClick={() => setEditing(null)}><Plus className="h-4 w-4" />Cadastrar usuário</Button>
       </div>
-
-      {editing !== undefined ? (
-        <UserModal user={editing} saving={saving} onClose={() => setEditing(undefined)} onSave={save} />
-      ) : null}
+      {notice && <p role="status" className="rounded-xl border bg-card px-4 py-3 text-sm">{notice}</p>}
+      {usersResource.error && <p role="alert" className="text-sm text-destructive">{usersResource.error}</p>}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard title="Usuários" value={usersResource.loading ? "..." : String(users.length)} helper="Pessoas cadastradas na equipe" icon={UserCog} />
+        <MetricCard title="Ativos" value={usersResource.loading ? "..." : String(users.filter((user) => user.status === "ACTIVE").length)} helper="Acesso habilitado à plataforma" icon={CheckCircle2} tone="teal" />
+        <MetricCard title="Administradores" value={usersResource.loading ? "..." : String(users.filter((user) => user.role === "ADMIN").length)} helper="Gestão completa do sistema" icon={ShieldCheck} tone="indigo" />
+        <MetricCard title="Funcionários" value={usersResource.loading ? "..." : String(users.filter((user) => user.role === "EMPLOYEE").length)} helper="Funcionários cadastrados na equipe" icon={UserCog} tone="amber" />
+      </div>
+      <div className="management-surface border bg-card">
+        <div className="space-y-4 border-b p-4">
+          <div className="relative max-w-lg"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input aria-label="Pesquisar usuários" className="pl-9" value={query} onChange={(event) => changeQuery(event.target.value)} placeholder="Pesquisar nome, e-mail, telefone ou cargo..." /></div>
+          <div className="flex flex-wrap gap-2">{categories.map((item) => <button key={item.key} type="button" aria-pressed={category === item.key} onClick={() => changeCategory(item.key)} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition-colors ${category === item.key ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground hover:bg-muted"}`}>{item.label}<span className="rounded-md bg-background/15 px-1.5 tabular-nums">{item.count}</span></button>)}</div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="management-table w-full min-w-[800px] text-left text-sm">
+            <thead className="border-b text-xs text-muted-foreground"><tr>{["Usuário", "Contato", "Perfil", "Status", "Ações"].map((title) => <th key={title} className={`px-5 py-3 font-medium ${title === "Ações" ? "text-right" : ""}`}>{title}</th>)}</tr></thead>
+            <tbody>
+              {usersResource.loading ? <tr><td colSpan={5} className="p-10 text-center text-muted-foreground">Carregando usuários...</td></tr> : paginated.map((user) => <tr key={user.id} className="border-b last:border-0">
+                <td className="px-5 py-4"><div className="flex items-center gap-3"><span aria-hidden="true" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/5 text-xs font-semibold text-primary">{user.name.split(" ").filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span><div><p className="font-semibold">{user.name}{user.id === currentUser.data?.id && <span className="ml-2 text-xs font-normal text-primary">Você</span>}</p><p className="mt-1 text-xs text-muted-foreground">{user.title || "Sem cargo informado"}</p></div></div></td>
+                <td className="px-5 py-4"><p>{user.email}</p><p className="mt-1 text-xs text-muted-foreground">{user.phone || "Sem telefone"}</p></td>
+                <td className="px-5 py-4"><span className="rounded-lg bg-muted/60 px-2.5 py-1 text-xs font-medium">{user.role === "ADMIN" ? "Administrador" : "Funcionário"}</span></td>
+                <td className="px-5 py-4"><span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${user.status === "ACTIVE" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>{user.status === "ACTIVE" ? <CheckCircle2 className="h-3 w-3" /> : <Ban className="h-3 w-3" />}{user.status === "ACTIVE" ? "Ativo" : "Bloqueado"}</span></td>
+                <td className="px-5 py-4"><div className="flex justify-end gap-2">
+                  <IconAction title="Editar usuário" onClick={() => setEditing(user)} disabled={saving}><Pencil className="h-4 w-4" /></IconAction>
+                  <IconAction title={user.status === "ACTIVE" ? "Bloquear usuário" : "Desbloquear usuário"} onClick={() => toggleBlock(user)} disabled={saving || user.id === currentUser.data?.id}>{user.status === "ACTIVE" ? <Ban className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}</IconAction>
+                  <IconAction title="Excluir usuário" onClick={() => remove(user)} disabled={saving || user.id === currentUser.data?.id} destructive><Trash2 className="h-4 w-4" /></IconAction>
+                </div></td>
+              </tr>)}
+              {!usersResource.loading && !paginated.length && <tr><td colSpan={5} className="p-10 text-center text-muted-foreground">Nenhum usuário encontrado</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3"><span className="text-xs text-muted-foreground">{filtered.length} usuários · Página {safePage} de {totalPages}</span><div className="flex gap-2"><Button variant="outline" size="sm" disabled={safePage <= 1} onClick={() => setPage(safePage - 1)}>Anterior</Button><Button variant="outline" size="sm" disabled={safePage >= totalPages} onClick={() => setPage(safePage + 1)}>Próxima</Button></div></div>
+      </div>
+      {editing !== undefined && <UserModal user={editing} saving={saving} onClose={() => setEditing(undefined)} onSave={save} />}
     </div>
   );
 }
 
 function UserModal({ user, saving, onClose, onSave }: { user: UserItem | null; saving: boolean; onClose: () => void; onSave: (payload: Record<string, unknown>) => Promise<void> }) {
   const [role, setRole] = useState<UserItem["role"]>(user?.role ?? "EMPLOYEE");
-  const [selected, setSelected] = useState<Record<string, boolean>>(user?.permissions ?? {});
+  const [selected, setSelected] = useState<Record<string, boolean>>(() => ({
+    ...user?.permissions,
+    ...Object.fromEntries(navigationItems.filter((item) => !("adminOnly" in item)).map((item) => [
+      `page:${item.href}`, user ? canAccessPage(user, item) : false,
+    ])),
+  }));
+  function togglePage(item: (typeof navigationItems)[number], checked: boolean) {
+    setSelected((current) => ({ ...current, [`page:${item.href}`]: checked, ...(checked ? { [item.permission]: true } : {}) }));
+  }
 
   const toggleGroup = (group: typeof permissionGroups[number], checked: boolean) =>
     setSelected((current) => ({ ...current, ...Object.fromEntries(group.items.map(([key]) => [key, checked])) }));
@@ -403,10 +216,10 @@ function UserModal({ user, saving, onClose, onSave }: { user: UserItem | null; s
   }
 
   return (
-    <Modal title={user ? `Editar ${user.name}` : "Incluir cadastro"} onClose={onClose}>
+    <Modal title={user ? `Editar ${user.name}` : "Cadastrar usuário"} onClose={onClose}>
       <form className="space-y-5" onSubmit={submit}>
         <fieldset className="space-y-3">
-          <legend className="mb-2 text-sm font-semibold">Dados do cadastro</legend>
+          <legend className="mb-2 text-sm font-semibold">Dados do usuário</legend>
           <div className="grid gap-3 sm:grid-cols-2">
             <Input name="name" defaultValue={user?.name ?? ""} placeholder="Nome completo" required />
             <Input name="email" defaultValue={user?.email ?? ""} placeholder="E-mail" type="email" required />
@@ -419,7 +232,7 @@ function UserModal({ user, saving, onClose, onSave }: { user: UserItem | null; s
               value={role}
               onChange={(event) => setRole(event.target.value as UserItem["role"])}
             >
-              <option value="EMPLOYEE">Fornecedor/Colaborador</option>
+              <option value="EMPLOYEE">Funcionário</option>
               <option value="ADMIN">Administrador</option>
             </select>
             <div className="relative">
@@ -441,17 +254,31 @@ function UserModal({ user, saving, onClose, onSave }: { user: UserItem | null; s
             <ShieldCheck className="h-5 w-5 shrink-0" />
             <div>
               <p className="font-medium">Acesso administrativo completo</p>
-              <p>Este cadastro poderá acessar todas as abas e funções do sistema.</p>
+              <p>Este usuário poderá acessar todas as abas e funções do sistema.</p>
             </div>
           </div>
         ) : (
+          <div className="space-y-5">
+          <fieldset className="space-y-4">
+            <legend className="text-sm font-semibold">Abas permitidas</legend>
+            <p className="text-xs text-muted-foreground">Selecione as abas que este funcionário poderá acessar. Usuários é uma área exclusiva de administradores.</p>
+            {navigationGroups.map((group) => <div key={group} className="rounded-xl border bg-card p-4">
+              <h3 className="mb-3 text-xs font-semibold text-muted-foreground">{group || "Principal"}</h3>
+              <div className="grid gap-2 sm:grid-cols-2">{navigationItems.filter((item) => item.group === group && !("adminOnly" in item)).map((item) => <label key={item.href} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm ${selected[`page:${item.href}`] ? "border-primary/30 bg-primary/5" : "border-border"}`}>
+                <input type="checkbox" className="h-4 w-4 accent-red-600" checked={Boolean(selected[`page:${item.href}`])} onChange={(event) => togglePage(item, event.target.checked)} />
+                <item.icon className="h-4 w-4 text-primary" />{item.title}
+              </label>)}</div>
+            </div>)}
+          </fieldset>
+          <details className="rounded-xl border p-4">
+            <summary className="cursor-pointer text-sm font-semibold">Permissões de ações</summary>
+            <p className="my-3 text-xs text-muted-foreground">Defina também quais operações o funcionário pode realizar nas abas liberadas.</p>
           <fieldset>
-            <legend className="mb-3 text-sm font-semibold">Abas e permissões do cadastro</legend>
             <div className="grid gap-3 md:grid-cols-2">
               {permissionGroups.map((group) => {
                 const all = group.items.every(([key]) => selected[key]);
                 return (
-                  <div key={group.title} className="rounded-md border p-3">
+                  <div key={group.title} className="rounded-xl border bg-card p-4">
                     <label className="flex items-center justify-between gap-3 font-medium">
                       <span>{group.title}</span>
                       <input type="checkbox" checked={all} onChange={(event) => toggleGroup(group, event.target.checked)} />
@@ -473,27 +300,16 @@ function UserModal({ user, saving, onClose, onSave }: { user: UserItem | null; s
               })}
             </div>
           </fieldset>
+          </details>
+          </div>
         )}
 
         <Button className="w-full" disabled={saving}>
           <UserCog className="h-4 w-4" />
-          {saving ? "Salvando..." : "Salvar cadastro"}
+          {saving ? "Salvando..." : "Salvar usuário"}
         </Button>
       </form>
     </Modal>
-  );
-}
-
-function ToolbarChip({ icon, label }: { icon?: ReactNode; label: string }) {
-  return (
-    <button
-      type="button"
-      className="inline-flex h-12 items-center gap-2 rounded-full border border-slate-200 px-4 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-    >
-      {icon}
-      {label}
-      {!icon ? <ChevronDown className="h-4 w-4 text-slate-400" /> : null}
-    </button>
   );
 }
 
@@ -514,6 +330,7 @@ function IconAction({
     <button
       type="button"
       title={title}
+      aria-label={title}
       onClick={onClick}
       disabled={disabled}
       className={`flex h-9 w-9 items-center justify-center rounded-full border transition ${
@@ -527,27 +344,10 @@ function IconAction({
   );
 }
 
-function inferCity(user: UserItem) {
-  if (user.title?.toLowerCase().includes("são paulo")) return "São Paulo";
-  if (user.title?.toLowerCase().includes("rio")) return "Rio de Janeiro";
-  return "Não informado";
-}
-
-function formatCpfCnpjLike(phone: string | null, email: string) {
-  const digits = `${phone ?? ""}${email}`.replace(/\D/g, "").slice(0, 14);
-  if (digits.length >= 14) {
-    return digits.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2}).*$/, "$1.$2.$3/$4-$5");
-  }
-  if (digits.length >= 11) {
-    return digits.replace(/^(\d{3})(\d{3})(\d{3})(\d{2}).*$/, "$1.$2.$3-$4");
-  }
-  return "Não informado";
-}
-
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-md border bg-background shadow-2xl">
+      <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border bg-background shadow-2xl">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-5 py-4">
           <h2 className="font-semibold">{title}</h2>
           <Button type="button" size="icon" variant="ghost" onClick={onClose}>
