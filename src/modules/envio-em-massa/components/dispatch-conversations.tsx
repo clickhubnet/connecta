@@ -35,6 +35,9 @@ export function DispatchConversations() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [audioBusy, setAudioBusy] = useState(false);
+  const recordingBusyRef = useRef(false);
+  const audioSessionRef = useRef(0);
   const [isSending, setIsSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -111,7 +114,11 @@ export function DispatchConversations() {
   }
 
   async function sendCurrentMessage() {
-    if (!selectedId || thread?.state === "BLOCKED" || !freeFormWindowOpen || isSending || (!message.trim() && !selectedFile)) return;
+    if (!selectedId || thread?.state === "BLOCKED" || !freeFormWindowOpen || isSending || isRecording || audioBusy || (!message.trim() && !selectedFile)) return;
+    if (selectedFile && selectedFile.size > 4 * 1024 * 1024) {
+      setNotice("O arquivo deve ter no máximo 4 MB para envio pelo CRM.");
+      return;
+    }
     setIsSending(true);
     setNotice("");
     try {
@@ -140,17 +147,45 @@ export function DispatchConversations() {
     return fetch("/api/envio-em-massa/conversas", { method: "POST", body: formData });
   }
 
+  useEffect(() => {
+    audioSessionRef.current += 1;
+    setIsRecording(false);
+    setSelectedFile(null);
+    setAudioPreviewUrl(null);
+    audioSamplesRef.current = [];
+    return () => {
+      audioSessionRef.current += 1;
+      audioProcessorRef.current?.disconnect();
+      audioSourceRef.current?.disconnect();
+      audioStreamRef.current?.getTracks().forEach((track) => track.stop());
+      void audioContextRef.current?.close().catch(() => {});
+    };
+  }, [selectedId]);
+
+  useEffect(() => () => {
+    if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
+  }, [audioPreviewUrl]);
+
   async function startRecording() {
-    if (isRecording) return;
+    if (isRecording || recordingBusyRef.current || isSending) return;
+    recordingBusyRef.current = true;
+    setAudioBusy(true);
+    const session = audioSessionRef.current;
+    let stream: MediaStream | null = null;
+    let audioContext: AudioContext | null = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextClass) {
         stream.getTracks().forEach((track) => track.stop());
         setNotice("Este navegador não permite gravar áudio compatível. Anexe um arquivo MP3.");
         return;
       }
-      const audioContext = new AudioContextClass();
+      audioContext = new AudioContextClass();
+      await audioContext.resume();
+      await loadLameEncoder();
+      if (session !== audioSessionRef.current) throw new Error("recording-cancelled");
+      clearSelectedMedia();
       const source = audioContext.createMediaStreamSource(stream);
       const processor = audioContext.createScriptProcessor(4096, 1, 1);
       audioSamplesRef.current = [];
@@ -168,12 +203,20 @@ export function DispatchConversations() {
       setNotice("");
       setIsRecording(true);
     } catch {
-      setNotice("Não foi possível acessar o microfone.");
+      stream?.getTracks().forEach((track) => track.stop());
+      if (audioContext && audioContext.state !== "closed") void audioContext.close();
+      setNotice("Não foi possível iniciar o gravador. Confira a permissão do microfone e tente novamente.");
+    } finally {
+      recordingBusyRef.current = false;
+      setAudioBusy(false);
     }
   }
 
   async function stopRecording() {
-    if (!isRecording) return;
+    if (!isRecording || recordingBusyRef.current) return;
+    recordingBusyRef.current = true;
+    setAudioBusy(true);
+    const session = audioSessionRef.current;
     const processor = audioProcessorRef.current;
     const source = audioSourceRef.current;
     const context = audioContextRef.current;
@@ -195,12 +238,16 @@ export function DispatchConversations() {
         return;
       }
       const blob = await encodeMp3(samples, audioSampleRateRef.current);
+      if (session !== audioSessionRef.current) return;
       const file = new File([blob], `audio-${Date.now()}.mp3`, { type: "audio/mpeg" });
       setSelectedFile(file);
       if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
       setAudioPreviewUrl(URL.createObjectURL(blob));
     } catch {
       setNotice("Não foi possível gerar o MP3. Grave novamente ou anexe um MP3.");
+    } finally {
+      recordingBusyRef.current = false;
+      setAudioBusy(false);
     }
   }
 
@@ -255,13 +302,13 @@ export function DispatchConversations() {
                 {audioPreviewUrl ? <audio className="mt-3 w-full" controls src={audioPreviewUrl} /> : null}
               </div>
             ) : null}
-            <input ref={fileInputRef} type="file" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt" className="hidden" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file) { setSelectedFile(file); if (!file.type.startsWith("audio/") && audioPreviewUrl) { URL.revokeObjectURL(audioPreviewUrl); setAudioPreviewUrl(null); } } }} />
+            <input ref={fileInputRef} type="file" accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt" className="hidden" onChange={(event) => { const file = event.target.files?.[0] ?? null; if (file) { clearSelectedMedia(); setSelectedFile(file); if (file.type.startsWith("audio/") || file.name.toLowerCase().endsWith(".mp3")) setAudioPreviewUrl(URL.createObjectURL(file)); } }} />
             {!thread ? <div className="shrink-0 border-t bg-card px-4 py-3 text-sm text-muted-foreground">Carregando conversa…</div> : thread.state === "BLOCKED" ? <div className="shrink-0 border-t bg-rose-50 px-4 py-3 text-sm text-rose-700">Contato bloqueado. Desbloqueie para enviar novas mensagens.</div> : !freeFormWindowOpen ? <div className="shrink-0 border-t bg-amber-50 px-4 py-3 text-sm text-amber-800">Mensagem livre bloqueada pela Meta até o cliente responder. Envie um template aprovado em Disparos ou aguarde a resposta para abrir a janela de 24 horas.</div> : <div className="shrink-0 border-t bg-card px-4 py-3">
               <div className="flex items-end gap-2">
-                <Button type="button" variant="ghost" size="icon" aria-label="Anexar mídia ou documento" onClick={() => fileInputRef.current?.click()}><Paperclip className="h-4 w-4" /></Button>
-                <Button type="button" variant="ghost" size="icon" aria-label={isRecording ? "Parar gravação" : "Gravar áudio"} onClick={isRecording ? () => void stopRecording() : () => void startRecording()}>{isRecording ? <Square className="h-4 w-4 text-destructive" /> : <Mic className="h-4 w-4" />}</Button>
+                <Button type="button" variant="ghost" size="icon" aria-label="Anexar mídia ou documento" disabled={audioBusy || isRecording || isSending} onClick={() => fileInputRef.current?.click()}><Paperclip className="h-4 w-4" /></Button>
+                <Button type="button" variant="ghost" size="icon" disabled={audioBusy || isSending} aria-label={isRecording ? "Parar gravação" : "Gravar áudio"} onClick={isRecording ? () => void stopRecording() : () => void startRecording()}>{isRecording ? <Square className="h-4 w-4 text-destructive" /> : <Mic className="h-4 w-4" />}</Button>
                 <Textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder={selectedFile ? "Legenda opcional..." : "Digite uma mensagem..."} rows={1} className="min-h-11 max-h-28 flex-1 resize-y rounded-2xl bg-muted/40 py-3" />
-                <Button type="button" size="icon" className="h-11 w-11 rounded-full" aria-label="Enviar mensagem" disabled={isSending || (!message.trim() && !selectedFile)} onClick={() => void sendCurrentMessage()}><Send className="h-4 w-4" /></Button>
+                <Button type="button" size="icon" className="h-11 w-11 rounded-full" aria-label="Enviar mensagem" disabled={isSending || isRecording || audioBusy || (!message.trim() && !selectedFile)} onClick={() => void sendCurrentMessage()}><Send className="h-4 w-4" /></Button>
               </div>
             </div>}
           </> : <div className="wa-messages flex h-full items-center justify-center p-8 text-center"><div className="max-w-sm"><MessageCircleMore aria-hidden="true" className="mx-auto h-10 w-10 text-primary" /><h2 className="mt-5 text-lg font-semibold">Selecione uma conversa.</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">{user?.role === "ADMIN" ? "Acompanhe as respostas dos disparos e atribua cada conversa a um funcionário." : "Aqui aparecem apenas as conversas de campanha atribuídas a você."}</p></div></div>}
@@ -358,25 +405,33 @@ async function encodeMp3(samples: Float32Array, sampleRate: number) {
   return new Blob(chunks.map((chunk) => new Uint8Array(chunk).buffer), { type: "audio/mpeg" });
 }
 
-async function loadLameEncoder() {
-  if (window.lamejs?.Mp3Encoder) return window.lamejs;
-  await new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>("script[data-lamejs]");
-    if (existing) {
-      existing.addEventListener("load", () => resolve(), { once: true });
-      existing.addEventListener("error", () => reject(new Error("lame-load-error")), { once: true });
-      return;
-    }
+let lameLoading: Promise<LameBundle> | null = null;
+
+function loadLameEncoder(): Promise<LameBundle> {
+  if (window.lamejs?.Mp3Encoder) return Promise.resolve(window.lamejs);
+  if (lameLoading) return lameLoading;
+  lameLoading = new Promise<LameBundle>((resolve, reject) => {
+    document.querySelector("script[data-lamejs]")?.remove();
     const script = document.createElement("script");
+    const fail = () => {
+      window.clearTimeout(timer);
+      script.remove();
+      lameLoading = null;
+      reject(new Error("lame-load-error"));
+    };
+    const timer = window.setTimeout(fail, 15000);
     script.src = "/vendor/lame.all.js";
     script.async = true;
     script.dataset.lamejs = "true";
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("lame-load-error"));
+    script.onload = () => {
+      window.clearTimeout(timer);
+      if (window.lamejs?.Mp3Encoder) resolve(window.lamejs);
+      else fail();
+    };
+    script.onerror = fail;
     document.head.appendChild(script);
   });
-  if (!window.lamejs?.Mp3Encoder) throw new Error("lame-unavailable");
-  return window.lamejs;
+  return lameLoading;
 }
 
 function floatToInt16(samples: Float32Array) {

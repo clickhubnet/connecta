@@ -1,3 +1,4 @@
+import { isMp3Audio } from "@/lib/audio/mp3";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -129,6 +130,9 @@ export async function POST(request: Request) {
       if (conversation.state === "BLOCKED") return NextResponse.json(errorResponse("Contato bloqueado. Desbloqueie para enviar mensagens."), { status: 423 });
       if (!await hasOpenCustomerServiceWindow(conversation.id)) return NextResponse.json(errorResponse(FREE_FORM_WINDOW_ERROR), { status: 409 });
 
+      if (file.size > 4 * 1024 * 1024) {
+        return NextResponse.json(errorResponse("O arquivo deve ter no máximo 4 MB para envio pelo CRM."), { status: 413 });
+      }
       const originalBuffer = Buffer.from(await file.arrayBuffer());
       const mimeType = normalizeUploadedMimeType(file.name, file.type || "application/octet-stream");
       const mediaKind = mediaKindFromMime(mimeType);
@@ -136,8 +140,8 @@ export async function POST(request: Request) {
         if (mimeType !== "audio/mpeg") {
           return NextResponse.json(errorResponse("Para garantir compatibilidade com a Meta, envie áudio somente em MP3."), { status: 415 });
         }
-        if (originalBuffer.byteLength < 512) {
-          return NextResponse.json(errorResponse("O áudio gravado ficou vazio. Grave novamente antes de enviar."), { status: 400 });
+        if (!isMp3Audio(originalBuffer)) {
+          return NextResponse.json(errorResponse("O arquivo não contém um MP3 válido. Grave novamente ou anexe um MP3 sem renomear outro formato."), { status: 400 });
         }
       }
       const media = { buffer: originalBuffer, mimeType, fileName: mediaKind === "audio" ? ensureMp3FileName(file.name) : file.name };
