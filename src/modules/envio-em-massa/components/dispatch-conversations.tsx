@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Mp3Encoder } from "lamejs";
 import { ArrowLeft, Ban, CheckCircle2, FileText, Filter, MessageCircleMore, Mic, Paperclip, Search, Send, Square, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -318,9 +317,19 @@ function hasOpenCustomerServiceWindow(thread: Thread | null) {
 
 type BrowserAudioContext = typeof AudioContext;
 
+type LameMp3Encoder = {
+  encodeBuffer(left: Int16Array, right?: Int16Array): Int8Array;
+  flush(): Int8Array;
+};
+
+type LameBundle = {
+  Mp3Encoder: new (channels: number, sampleRate: number, kbps: number) => LameMp3Encoder;
+};
+
 declare global {
   interface Window {
     webkitAudioContext?: BrowserAudioContext;
+    lamejs?: LameBundle;
   }
 }
 
@@ -336,8 +345,8 @@ function mergeAudioSamples(chunks: Float32Array[]) {
 }
 
 async function encodeMp3(samples: Float32Array, sampleRate: number) {
-  const lamejs = await import("lamejs");
-  const encoder: Mp3Encoder = new lamejs.Mp3Encoder(1, sampleRate, 96);
+  const lamejs = await loadLameEncoder();
+  const encoder = new lamejs.Mp3Encoder(1, sampleRate, 96);
   const blockSize = 1152;
   const chunks: Int8Array[] = [];
   for (let offset = 0; offset < samples.length; offset += blockSize) {
@@ -347,6 +356,27 @@ async function encodeMp3(samples: Float32Array, sampleRate: number) {
   const end = encoder.flush();
   if (end.length) chunks.push(end);
   return new Blob(chunks.map((chunk) => new Uint8Array(chunk).buffer), { type: "audio/mpeg" });
+}
+
+async function loadLameEncoder() {
+  if (window.lamejs?.Mp3Encoder) return window.lamejs;
+  await new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>("script[data-lamejs]");
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("lame-load-error")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "/vendor/lame.all.js";
+    script.async = true;
+    script.dataset.lamejs = "true";
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("lame-load-error"));
+    document.head.appendChild(script);
+  });
+  if (!window.lamejs?.Mp3Encoder) throw new Error("lame-unavailable");
+  return window.lamejs;
 }
 
 function floatToInt16(samples: Float32Array) {
