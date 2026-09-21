@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Mp3Encoder } from "lamejs";
 import { ArrowLeft, Ban, CheckCircle2, FileText, Filter, MessageCircleMore, Mic, Paperclip, Search, Send, Square, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -37,8 +38,12 @@ export function DispatchConversations() {
   const [isRecording, setIsRecording] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const audioStreamRef = useRef<MediaStream | null>(null);
+  const audioSamplesRef = useRef<Float32Array[]>([]);
+  const audioSampleRateRef = useRef(44100);
   const inbox = useApiResource<InboxData>(`/api/envio-em-massa/conversas?filter=${filter}&search=${encodeURIComponent(search)}`);
   const detail = useApiResource<InboxData>(`/api/envio-em-massa/conversas?id=${selectedId ?? ""}`, Boolean(selectedId));
   const thread = selectedId && !detail.loading && !detail.error ? detail.data?.conversations.find((item) => item.id === selectedId) ?? null : null;
@@ -140,38 +145,64 @@ export function DispatchConversations() {
     if (isRecording) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = preferredWhatsappAudioMimeType();
-      if (!mimeType) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) {
         stream.getTracks().forEach((track) => track.stop());
-        setNotice("Seu navegador grava áudio em um formato que a Meta não aceita. Use Firefox atualizado ou anexe um áudio .ogg, .mp3, .m4a, .aac ou .amr.");
+        setNotice("Este navegador não permite gravar áudio compatível. Anexe um arquivo MP3.");
         return;
       }
-      const recorder = new MediaRecorder(stream, { mimeType });
-      mediaRecorderRef.current = recorder;
-      audioChunksRef.current = [];
-      recorder.addEventListener("dataavailable", (event) => {
-        if (event.data.size > 0) audioChunksRef.current.push(event.data);
-      });
-      recorder.addEventListener("stop", () => {
-        const recordedMimeType = normalizeMimeType(recorder.mimeType || mimeType);
-        const blob = new Blob(audioChunksRef.current, { type: recordedMimeType });
-        const file = new File([blob], `audio-${Date.now()}.${audioExtensionFromMime(recordedMimeType)}`, { type: recordedMimeType });
-        setSelectedFile(file);
-        if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
-        setAudioPreviewUrl(URL.createObjectURL(blob));
-        stream.getTracks().forEach((track) => track.stop());
-        setIsRecording(false);
-      });
-      recorder.start();
+      const audioContext = new AudioContextClass();
+      const source = audioContext.createMediaStreamSource(stream);
+      const processor = audioContext.createScriptProcessor(4096, 1, 1);
+      audioSamplesRef.current = [];
+      audioSampleRateRef.current = audioContext.sampleRate;
+      processor.onaudioprocess = (event) => {
+        const input = event.inputBuffer.getChannelData(0);
+        audioSamplesRef.current.push(new Float32Array(input));
+      };
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+      audioContextRef.current = audioContext;
+      audioProcessorRef.current = processor;
+      audioSourceRef.current = source;
+      audioStreamRef.current = stream;
+      setNotice("");
       setIsRecording(true);
     } catch {
       setNotice("Não foi possível acessar o microfone.");
     }
   }
 
-  function stopRecording() {
-    mediaRecorderRef.current?.stop();
-    mediaRecorderRef.current = null;
+  async function stopRecording() {
+    if (!isRecording) return;
+    const processor = audioProcessorRef.current;
+    const source = audioSourceRef.current;
+    const context = audioContextRef.current;
+    const stream = audioStreamRef.current;
+    processor?.disconnect();
+    source?.disconnect();
+    stream?.getTracks().forEach((track) => track.stop());
+    audioProcessorRef.current = null;
+    audioSourceRef.current = null;
+    audioStreamRef.current = null;
+    setIsRecording(false);
+    try {
+      if (context?.state !== "closed") await context?.close();
+      audioContextRef.current = null;
+      const samples = mergeAudioSamples(audioSamplesRef.current);
+      audioSamplesRef.current = [];
+      if (samples.length < audioSampleRateRef.current / 4) {
+        setNotice("O áudio ficou muito curto. Grave novamente.");
+        return;
+      }
+      const blob = await encodeMp3(samples, audioSampleRateRef.current);
+      const file = new File([blob], `audio-${Date.now()}.mp3`, { type: "audio/mpeg" });
+      setSelectedFile(file);
+      if (audioPreviewUrl) URL.revokeObjectURL(audioPreviewUrl);
+      setAudioPreviewUrl(URL.createObjectURL(blob));
+    } catch {
+      setNotice("Não foi possível gerar o MP3. Grave novamente ou anexe um MP3.");
+    }
   }
 
   function clearSelectedMedia() {
@@ -229,7 +260,7 @@ export function DispatchConversations() {
             {!thread ? <div className="shrink-0 border-t bg-card px-4 py-3 text-sm text-muted-foreground">Carregando conversa…</div> : thread.state === "BLOCKED" ? <div className="shrink-0 border-t bg-rose-50 px-4 py-3 text-sm text-rose-700">Contato bloqueado. Desbloqueie para enviar novas mensagens.</div> : !freeFormWindowOpen ? <div className="shrink-0 border-t bg-amber-50 px-4 py-3 text-sm text-amber-800">Mensagem livre bloqueada pela Meta até o cliente responder. Envie um template aprovado em Disparos ou aguarde a resposta para abrir a janela de 24 horas.</div> : <div className="shrink-0 border-t bg-card px-4 py-3">
               <div className="flex items-end gap-2">
                 <Button type="button" variant="ghost" size="icon" aria-label="Anexar mídia ou documento" onClick={() => fileInputRef.current?.click()}><Paperclip className="h-4 w-4" /></Button>
-                <Button type="button" variant="ghost" size="icon" aria-label={isRecording ? "Parar gravação" : "Gravar áudio"} onClick={isRecording ? stopRecording : () => void startRecording()}>{isRecording ? <Square className="h-4 w-4 text-destructive" /> : <Mic className="h-4 w-4" />}</Button>
+                <Button type="button" variant="ghost" size="icon" aria-label={isRecording ? "Parar gravação" : "Gravar áudio"} onClick={isRecording ? () => void stopRecording() : () => void startRecording()}>{isRecording ? <Square className="h-4 w-4 text-destructive" /> : <Mic className="h-4 w-4" />}</Button>
                 <Textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder={selectedFile ? "Legenda opcional..." : "Digite uma mensagem..."} rows={1} className="min-h-11 max-h-28 flex-1 resize-y rounded-2xl bg-muted/40 py-3" />
                 <Button type="button" size="icon" className="h-11 w-11 rounded-full" aria-label="Enviar mensagem" disabled={isSending || (!message.trim() && !selectedFile)} onClick={() => void sendCurrentMessage()}><Send className="h-4 w-4" /></Button>
               </div>
@@ -285,30 +316,44 @@ function hasOpenCustomerServiceWindow(thread: Thread | null) {
   return thread.messages.some((message) => message.direction === "inbound" && new Date(message.createdAt).getTime() >= windowStart);
 }
 
-const WHATSAPP_AUDIO_MIME_TYPES = [
-  "audio/ogg;codecs=opus",
-  "audio/ogg",
-  "audio/mp4",
-  "audio/mpeg",
-  "audio/aac",
-  "audio/amr",
-] as const;
+type BrowserAudioContext = typeof AudioContext;
 
-function preferredWhatsappAudioMimeType() {
-  if (typeof MediaRecorder === "undefined" || typeof MediaRecorder.isTypeSupported !== "function") return "";
-  return WHATSAPP_AUDIO_MIME_TYPES.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) ?? "";
+declare global {
+  interface Window {
+    webkitAudioContext?: BrowserAudioContext;
+  }
 }
 
-function normalizeMimeType(mimeType: string) {
-  return mimeType.split(";")[0]?.trim() || "application/octet-stream";
+function mergeAudioSamples(chunks: Float32Array[]) {
+  const length = chunks.reduce((total, chunk) => total + chunk.length, 0);
+  const samples = new Float32Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    samples.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return samples;
 }
 
-function audioExtensionFromMime(mimeType: string) {
-  const normalized = normalizeMimeType(mimeType);
-  if (normalized === "audio/ogg") return "ogg";
-  if (normalized === "audio/mp4") return "m4a";
-  if (normalized === "audio/mpeg") return "mp3";
-  if (normalized === "audio/aac") return "aac";
-  if (normalized === "audio/amr") return "amr";
-  return "audio";
+async function encodeMp3(samples: Float32Array, sampleRate: number) {
+  const lamejs = await import("lamejs");
+  const encoder: Mp3Encoder = new lamejs.Mp3Encoder(1, sampleRate, 96);
+  const blockSize = 1152;
+  const chunks: Int8Array[] = [];
+  for (let offset = 0; offset < samples.length; offset += blockSize) {
+    const mp3 = encoder.encodeBuffer(floatToInt16(samples.subarray(offset, offset + blockSize)));
+    if (mp3.length) chunks.push(mp3);
+  }
+  const end = encoder.flush();
+  if (end.length) chunks.push(end);
+  return new Blob(chunks.map((chunk) => new Uint8Array(chunk).buffer), { type: "audio/mpeg" });
+}
+
+function floatToInt16(samples: Float32Array) {
+  const pcm = new Int16Array(samples.length);
+  for (let index = 0; index < samples.length; index++) {
+    const sample = Math.max(-1, Math.min(1, samples[index] ?? 0));
+    pcm[index] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
+  }
+  return pcm;
 }

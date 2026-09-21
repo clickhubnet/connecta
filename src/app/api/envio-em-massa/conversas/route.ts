@@ -1,10 +1,3 @@
-import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { readFile, unlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { promisify } from "node:util";
-import ffmpegPath from "ffmpeg-static";
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -17,7 +10,6 @@ import { MetaWhatsappService } from "@/services/meta/meta-whatsapp.service";
 import { MetaApiError } from "@/services/meta/meta.service";
 
 const whatsappService = new MetaWhatsappService();
-const execFileAsync = promisify(execFile);
 const FREE_FORM_WINDOW_ERROR = "A Meta só permite texto livre, áudio, mídia ou documentos depois que o cliente responde e abre a janela de atendimento de 24 horas. Envie um template aprovado ou aguarde a resposta do cliente.";
 
 const dispatchScope: Prisma.ChatConversationWhereInput = {
@@ -138,20 +130,17 @@ export async function POST(request: Request) {
       if (!await hasOpenCustomerServiceWindow(conversation.id)) return NextResponse.json(errorResponse(FREE_FORM_WINDOW_ERROR), { status: 409 });
 
       const originalBuffer = Buffer.from(await file.arrayBuffer());
-      let mimeType = normalizeMimeType(file.type || "application/octet-stream");
+      const mimeType = normalizeUploadedMimeType(file.name, file.type || "application/octet-stream");
       const mediaKind = mediaKindFromMime(mimeType);
       if (mediaKind === "audio") {
-        if (!isSupportedWhatsappAudioInputMime(mimeType)) {
-          return NextResponse.json(errorResponse("Formato de áudio não aceito. Use .ogg, .mp3, .m4a, .aac, .amr ou grave novamente pelo CRM."), { status: 415 });
+        if (mimeType !== "audio/mpeg") {
+          return NextResponse.json(errorResponse("Para garantir compatibilidade com a Meta, envie áudio somente em MP3."), { status: 415 });
         }
         if (originalBuffer.byteLength < 512) {
           return NextResponse.json(errorResponse("O áudio gravado ficou vazio. Grave novamente antes de enviar."), { status: 400 });
         }
       }
-      const media = mediaKind === "audio"
-        ? await convertAudioToStableMp3(originalBuffer, mimeType)
-        : { buffer: originalBuffer, mimeType, fileName: file.name };
-      mimeType = media.mimeType;
+      const media = { buffer: originalBuffer, mimeType, fileName: mediaKind === "audio" ? ensureMp3FileName(file.name) : file.name };
       const dataUrl = `data:${mimeType};base64,${media.buffer.toString("base64")}`;
       const providerId = await sendMediaToWhatsapp({
         phone: conversation.phone,
@@ -232,52 +221,14 @@ function normalizeMimeType(mimeType: string) {
   return mimeType.split(";")[0]?.trim().toLowerCase() || "application/octet-stream";
 }
 
-function isSupportedWhatsappAudioInputMime(mimeType: string) {
-  return ["audio/aac", "audio/amr", "audio/mpeg", "audio/mp4", "audio/ogg", "audio/webm", "video/webm"].includes(normalizeMimeType(mimeType));
-}
-
-async function convertAudioToStableMp3(buffer: Buffer, mimeType: string) {
-  if (!ffmpegPath) throw new MetaApiError("Conversor de áudio indisponível no servidor. Tente anexar um arquivo MP3.", false, 500);
-  const id = randomUUID();
-  const inputPath = join(tmpdir(), `${id}.${inputExtensionFromMime(mimeType)}`);
-  const outputPath = join(tmpdir(), `${id}.mp3`);
-  try {
-    await writeFile(inputPath, buffer);
-    await execFileAsync(ffmpegPath, [
-      "-hide_banner",
-      "-loglevel",
-      "error",
-      "-y",
-      "-i",
-      inputPath,
-      "-vn",
-      "-ac",
-      "1",
-      "-ar",
-      "44100",
-      "-b:a",
-      "96k",
-      outputPath,
-    ], { timeout: 25_000, maxBuffer: 1024 * 1024 });
-    const converted = await readFile(outputPath);
-    if (converted.byteLength < 512) throw new Error("empty-audio");
-    return { buffer: converted, mimeType: "audio/mpeg", fileName: `audio-${Date.now()}.mp3` };
-  } catch {
-    throw new MetaApiError("Não foi possível preparar o áudio em MP3 para o WhatsApp. Grave novamente ou anexe um MP3.", false, 415);
-  } finally {
-    await Promise.allSettled([unlink(inputPath), unlink(outputPath)]);
-  }
-}
-
-function inputExtensionFromMime(mimeType: string) {
+function normalizeUploadedMimeType(fileName: string, mimeType: string) {
   const normalized = normalizeMimeType(mimeType);
-  if (normalized === "audio/ogg") return "ogg";
-  if (normalized === "audio/mpeg") return "mp3";
-  if (normalized === "audio/mp4") return "m4a";
-  if (normalized === "audio/aac") return "aac";
-  if (normalized === "audio/amr") return "amr";
-  if (normalized === "audio/webm" || normalized === "video/webm") return "webm";
-  return "audio";
+  if (["audio/mpeg", "audio/mp3", "audio/x-mpeg"].includes(normalized) || fileName.toLowerCase().endsWith(".mp3")) return "audio/mpeg";
+  return normalized;
+}
+
+function ensureMp3FileName(fileName: string) {
+  return fileName.toLowerCase().endsWith(".mp3") ? fileName : `${fileName.replace(/\.[^.]+$/, "") || "audio"}.mp3`;
 }
 
 function mediaKindFromMime(mimeType: string): "image" | "video" | "audio" | "document" {
