@@ -28,7 +28,7 @@ async function main() {
       }
     };
     for (let i = 0; i < 2; i++) {
-      const response = await fetch(origin + "/api/conversations/stream", { headers: { Cookie: cookie }, signal: controller.signal });
+      const response: Response = await fetch(origin + "/api/conversations/stream", { headers: { Cookie: cookie }, signal: controller.signal });
       assert.equal(response.status, 200);
       assert.match(response.headers.get("content-type") || "", /text\/event-stream/);
       const reader = response.body!.getReader();
