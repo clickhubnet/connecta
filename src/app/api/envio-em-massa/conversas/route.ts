@@ -1,3 +1,4 @@
+import { publishConversationEvent } from "@/server/realtime/conversation-events";
 import { pendingRepliesQuery } from "@/modules/envio-em-massa/pending-replies";
 import { isMp3Audio } from "@/lib/audio/mp3";
 import { NextResponse } from "next/server";
@@ -73,6 +74,7 @@ export async function PATCH(request: Request) {
         data: { state: action === "block" ? "BLOCKED" : "START" },
       })).count;
       if (!count) return NextResponse.json(errorResponse("Conversa não encontrada."), { status: 404 });
+      await publishConversationEvent({ conversationId, type: "conversation_updated" });
       return NextResponse.json(successResponse(action === "block" ? "Contato bloqueado." : "Contato desbloqueado.", null));
     }
 
@@ -84,6 +86,7 @@ export async function PATCH(request: Request) {
     });
     if (count === -1) return NextResponse.json(errorResponse("Funcionário indisponível."), { status: 400 });
     if (!count) return NextResponse.json(errorResponse("Conversa não encontrada."), { status: 404 });
+    await publishConversationEvent({ conversationId, type: "assignment_updated" });
     return NextResponse.json(successResponse("Responsável atualizado.", null));
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json(errorResponse("Não foi possível atribuir o funcionário."), { status: 500 });
@@ -101,6 +104,7 @@ export async function DELETE(request: Request) {
       data: { deletedAt: new Date() },
     })).count;
     if (!count) return NextResponse.json(errorResponse("Conversa não encontrada."), { status: 404 });
+    await publishConversationEvent({ conversationId, type: "conversation_deleted" });
     return NextResponse.json(successResponse("Conversa excluída.", null));
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json(errorResponse("Não foi possível excluir a conversa."), { status: 500 });
@@ -175,6 +179,7 @@ export async function POST(request: Request) {
         prisma.chatConversation.update({ where: { id: conversation.id }, data: { updatedAt: new Date() } }),
       ]);
 
+      await publishConversationEvent({ conversationId: conversation.id, type: "outbound_message" });
       return NextResponse.json(successResponse("Arquivo enviado.", null));
     }
 
@@ -205,6 +210,7 @@ export async function POST(request: Request) {
       prisma.chatConversation.update({ where: { id: conversation.id }, data: { updatedAt: new Date() } }),
     ]);
 
+    await publishConversationEvent({ conversationId: conversation.id, type: "outbound_message" });
     return NextResponse.json(successResponse("Mensagem enviada.", null));
   } catch (error) {
     const auth = authErrorResponse(error);

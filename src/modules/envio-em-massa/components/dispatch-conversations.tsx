@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
+import { useConversationRealtime } from "@/hooks/use-conversation-realtime";
 import { useApiResource } from "@/hooks/use-api-resource";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
@@ -40,6 +41,8 @@ export function DispatchConversations() {
   const audioSessionRef = useRef(0);
   const [isSending, setIsSending] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const messagesScrollRef = useRef<HTMLDivElement | null>(null);
+  const followMessagesRef = useRef(true);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const audioSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -51,10 +54,19 @@ export function DispatchConversations() {
   const thread = selectedId && !detail.loading && !detail.error ? detail.data?.conversations.find((item) => item.id === selectedId) ?? null : null;
   const freeFormWindowOpen = hasOpenCustomerServiceWindow(thread);
 
+  const realtimeConnected = useConversationRealtime(async () => {
+    await Promise.all([inbox.refresh(), ...(selectedId ? [detail.refresh()] : [])]);
+  });
+
+  useEffect(() => { followMessagesRef.current = true; }, [selectedId]);
   useEffect(() => {
-    const timer = window.setInterval(() => { void inbox.refresh(); if (selectedId) void detail.refresh(); }, 15000);
-    return () => window.clearInterval(timer);
-  }, [inbox.refresh, detail.refresh, selectedId]);
+    if (!followMessagesRef.current) return;
+    const frame = requestAnimationFrame(() => {
+      const panel = messagesScrollRef.current;
+      if (panel) panel.scrollTop = panel.scrollHeight;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [selectedId, thread?.messages[0]?.id]);
 
   async function assign(ownerUserId: string) {
     if (!selectedId) return;
@@ -268,7 +280,7 @@ export function DispatchConversations() {
         <section aria-label="Conversas de disparos" className="wa-list-panel bg-card">
           <div className="shrink-0 border-b p-4">
             <div className="mb-4 flex items-center justify-between gap-2">
-              <div><p className="text-xs font-semibold">Caixa de entrada</p><p className="mt-1 text-xs text-muted-foreground">{selected.label}</p></div>
+              <div><p className="text-xs font-semibold">Caixa de entrada</p><p className="mt-1 text-xs text-muted-foreground">{selected.label}</p><p className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground"><span className={`h-1.5 w-1.5 rounded-full ${realtimeConnected ? "bg-emerald-500" : "bg-amber-500"}`} />{realtimeConnected ? "Em tempo real" : "Reconectando…"}</p></div>
               <Button type="button" variant="ghost" className="h-8 rounded-lg px-2 text-xs" aria-expanded={filtersOpen} aria-controls="dispatch-filters" onClick={() => setFiltersOpen(!filtersOpen)}><Filter className="h-4 w-4" />Filtros</Button>
             </div>
             {filtersOpen && <div id="dispatch-filters" role="group" aria-label="Filtrar conversas" className="mb-4 flex flex-wrap gap-2">{filters.map((item) => <button key={item.id} type="button" aria-pressed={filter === item.id} onClick={() => setFilter(item.id)} className={`rounded-full px-3 py-2 text-xs font-medium transition-colors ${filter === item.id ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:text-foreground"}`}>{item.label}</button>)}</div>}
@@ -289,7 +301,10 @@ export function DispatchConversations() {
               {thread ? <div className="flex items-center gap-1"><Button type="button" variant="outline" size="sm" disabled={saving} className="h-9 rounded-xl text-xs" onClick={() => void toggleBlocked()}>{thread.state === "BLOCKED" ? <CheckCircle2 className="h-4 w-4" /> : <Ban className="h-4 w-4" />}{thread.state === "BLOCKED" ? "Desbloquear" : "Bloquear"}</Button><Button type="button" variant="outline" size="sm" disabled={saving} className="h-9 rounded-xl text-xs text-destructive hover:text-destructive" onClick={() => void deleteConversation()}><Trash2 className="h-4 w-4" />Excluir</Button></div> : null}</div>
               {notice && <p role="status" className="mt-2 text-xs text-destructive">{notice}</p>}
             </div>
-            <div className="wa-messages min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
+            <div ref={messagesScrollRef} onScroll={event => {
+              const panel = event.currentTarget;
+              followMessagesRef.current = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 100;
+            }} className="wa-messages min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
               {detail.error && <p role="alert" className="rounded-xl bg-card p-4 text-sm text-destructive">{detail.error}</p>}
               {detail.loading ? <p className="text-sm text-muted-foreground">Carregando mensagens…</p> : thread && [...thread.messages].reverse().map((item) => <div key={item.id} className={`flex ${item.direction === "inbound" ? "justify-start" : "justify-end"}`}><MessageBubble message={item} /></div>)}
             </div>

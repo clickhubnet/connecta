@@ -16,8 +16,10 @@ function getPool() {
   if (!globalThis.__connectaTelecomConversationPool) {
     globalThis.__connectaTelecomConversationPool = new Pool({
       connectionString: getConnectionString(),
+      max: 2, idleTimeoutMillis: 10000, connectionTimeoutMillis: 5000,
       ssl: shouldUseSsl() ? { rejectUnauthorized: false } : undefined,
     });
+    globalThis.__connectaTelecomConversationPool.on("error", () => {});
   }
 
   return globalThis.__connectaTelecomConversationPool;
@@ -53,6 +55,7 @@ export async function publishConversationEvent(payload: Record<string, unknown>)
 export function createConversationListener() {
   return new Client({
     connectionString: getConnectionString(),
+    connectionTimeoutMillis: 5000,
     ssl: shouldUseSsl() ? { rejectUnauthorized: false } : undefined,
   });
 }

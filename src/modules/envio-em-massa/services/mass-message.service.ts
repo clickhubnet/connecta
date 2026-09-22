@@ -1,3 +1,4 @@
+import { publishConversationEvent } from "@/server/realtime/conversation-events";
 import { ZodError } from "zod";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -195,6 +196,7 @@ async function registerDispatchConversation(input: {
         sentAt: new Date(),
       },
     });
+    await publishConversationEvent({ conversationId: conversation.id, type: "outbound_message" });
   } catch (error) {
     if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
   }

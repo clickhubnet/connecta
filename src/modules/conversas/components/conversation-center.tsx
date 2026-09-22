@@ -1,5 +1,7 @@
 "use client";
 
+import { useConversationRealtime } from "@/hooks/use-conversation-realtime";
+
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, MessageCircleMore, Filter, Mic, Paintbrush, Paperclip, Plus, Search, Send, Square, Trash2, UserCheck, Undo2, X } from "lucide-react";
@@ -116,7 +118,6 @@ export function ConversationCenter() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({ phone: "", leadName: "", firstMessage: "", ownerUserId: "" });
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const [activeFilter, setActiveFilter] = useState<ConversationFilter>("all");
   const [isFilterPopupOpen, setIsFilterPopupOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -326,39 +327,16 @@ export function ConversationCenter() {
     visibleCountRef.current = Math.max(payload?.conversations.items.length ?? PAGE_SIZE, PAGE_SIZE);
   }, [payload?.conversations.items.length]);
 
-  useEffect(() => {
-    const source = new EventSource("/api/conversations/stream");
-
-    source.addEventListener("connected", () => {
-      setIsRealtimeConnected(true);
+  const isRealtimeConnected = useConversationRealtime(async () => {
+    // Wait for an existing request so the final event in a burst is not dropped.
+    if (listRequestRef.current) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
+    await latestLoadRef.current({
+      preferredId: selectedIdRef.current, reset: true, silent: true,
+      limitOverride: visibleCountRef.current,
     });
-
-    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
-    source.addEventListener("conversation-update", () => {
-      if (refreshTimer) return;
-      const refresh = () => {
-        if (listRequestRef.current) {
-          refreshTimer = setTimeout(refresh, 500);
-          return;
-        }
-        refreshTimer = null;
-        void latestLoadRef.current({
-          preferredId: selectedIdRef.current, reset: true, silent: true,
-          limitOverride: visibleCountRef.current,
-        });
-      };
-      refreshTimer = setTimeout(refresh, 500);
-    });
-
-    source.onerror = () => {
-      setIsRealtimeConnected(false);
-    };
-
-    return () => {
-      source.close();
-      if (refreshTimer) clearTimeout(refreshTimer);
-    };
-  }, []);
+  });
 
   useEffect(() => {
     void loadConversations({ reset: true, preferredId: null });
