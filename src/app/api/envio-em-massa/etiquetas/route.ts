@@ -28,7 +28,10 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireCurrentUser();
-    const parsed = schema.safeParse(await request.json());
+    const body = await request.json();
+    const parsed = schema.safeParse(body && typeof body === "object"
+      ? {...body, ...(body.action !== "save" ? {label:undefined,color:undefined} : {})}
+      : body);
     if (!parsed.success) return NextResponse.json({message:"Confira o nome e a cor da etiqueta."},{status:400});
     const {conversationId,action,id,label,color}=parsed.data;
     const result = await prisma.$transaction(async tx=>{

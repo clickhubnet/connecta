@@ -25,7 +25,7 @@ export function DispatchTags({conversationId,tags,onChange}:{conversationId:stri
     if(action==="delete"&&!confirm("Excluir esta etiqueta de todas as conversas? Para remover apenas desta conversa, use Desvincular."))return;
     setBusy(true);setError("");
     try{
-      const response=await fetch("/api/envio-em-massa/etiquetas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversationId,action,id,label,color})});
+      const response=await fetch("/api/envio-em-massa/etiquetas",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({conversationId,action,id,...(action==="save"?{label,color}:{})})});
       const result=await response.json();
       if(!response.ok)throw new Error(result.message);
       await Promise.all([load(),onChange()]);
