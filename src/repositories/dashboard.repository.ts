@@ -1,3 +1,4 @@
+import {getDispatchStatistics} from "@/modules/envio-em-massa/dispatch-statistics";
 import { LeadStatus, Prisma, type User } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -15,7 +16,7 @@ export class DashboardRepository {
     const wonWhere: Prisma.LeadWhereInput = { deletedAt: null, status: LeadStatus.WON, ...buildWonAccessWhere(user) };
     const visibleLeadWhere: Prisma.LeadWhereInput = { deletedAt: null, ...accessWhere };
 
-    const [newLeads, expenses, leadStatuses, wonLeadRows, chartLeads, recentLeads] =
+    const [newLeads, expenses, leadStatuses, wonLeadRows, chartLeads, recentLeads, dispatchStats] =
       await Promise.all([
       prisma.lead.count({ where: { deletedAt: null, createdAt: todayFilter, ...accessWhere } }),
       user?.role === "EMPLOYEE" ? Promise.resolve(0) : getOpenExpensesTotal(),
@@ -39,6 +40,7 @@ export class DashboardRepository {
         take: 6,
         include: { plan: true, assignedUser: true },
       }),
+      getDispatchStatistics(filters.from,filters.to,user),
     ]);
 
     const wonValue = wonLeadRows.reduce((sum, lead) => sum + getLeadValue(lead), 0);
@@ -60,6 +62,7 @@ export class DashboardRepository {
     ).map(([, value]) => value);
 
     return {
+      dispatches:dispatchStats.total,
       newLeads,
       wonLeads,
       totalValue: wonValue,
@@ -149,7 +152,7 @@ function buildDateFilter(filters: DashboardFilters) {
 function buildLeadChart(leads: Array<{ createdAt: Date }>, filters: DashboardFilters) {
   const from = filters.from ?? daysAgo(6);
   const to = filters.to ?? new Date();
-  const days = Math.max(1, Math.ceil((endOfDay(to).getTime() - startOfDay(from).getTime()) / 86_400_000) + 1);
+  const days = Math.max(1, Math.floor((startOfDay(to).getTime() - startOfDay(from).getTime()) / 86_400_000) + 1);
   const buckets = new Map<string, number>();
 
   for (let index = 0; index < days; index += 1) {

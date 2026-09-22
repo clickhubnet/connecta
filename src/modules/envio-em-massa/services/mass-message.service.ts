@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { publishConversationEvent } from "@/server/realtime/conversation-events";
 import { ZodError } from "zod";
 import { Prisma } from "@prisma/client";
@@ -66,6 +67,7 @@ export class MassMessageService {
     }));
     }
 
+    const batchId = randomUUID();
     const results = await mapWithConcurrency(contacts, CONCURRENCY, async (phone): Promise<ContactResult> => {
       try {
         if (await isBlockedDispatchContact(phone)) {
@@ -81,6 +83,7 @@ export class MassMessageService {
         await registerDispatchConversation({
           phone,
           user,
+          batchId,
           body: input.mode === "text" ? input.message : `Template Meta: ${templateName}`,
           providerMessageId,
           mode: input.mode,
@@ -109,13 +112,18 @@ export class MassMessageService {
       }
     });
 
-    return {
+    const result = {
       total: results.length,
       accepted: results.filter((item) => item.status === "accepted").length,
       failed: results.filter((item) => item.status === "failed").length,
       uncertain: results.filter((item) => item.status === "uncertain").length,
       contacts: results,
     };
+    await prisma.appSetting.create({data:{key:"private:dispatch-result:"+batchId,value:{
+      userId:user?.id??null,total:result.total,accepted:result.accepted,failed:result.failed,uncertain:result.uncertain
+    }}});
+    await publishConversationEvent({type:"dispatch_completed"});
+    return result;
   }
 }
 
@@ -132,6 +140,7 @@ async function isBlockedDispatchContact(phone: string) {
 }
 
 async function registerDispatchConversation(input: {
+  batchId: string;
   phone: string;
   user?: { id: string; role: string };
   body: string;
@@ -190,6 +199,7 @@ async function registerDispatchConversation(input: {
         providerId: input.providerMessageId,
         rawPayload: {
           kind: "mass-dispatch",
+          batchId: input.batchId,
           mode: input.mode,
           templateName: input.templateName,
         } as Prisma.InputJsonValue,

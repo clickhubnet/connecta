@@ -7,7 +7,7 @@ export class LeadRepository {
     return prisma.lead.findMany({
       where: buildLeadAccessWhere(user),
       orderBy: { createdAt: "desc" },
-      include: { assignedUser: true, plan: true, kanbanStage: true },
+      include: { assignedUser: {select:{id:true,name:true,email:true}}, plan: {select:{id:true,name:true,speed:true,price:true,active:true}}, kanbanStage: {select:{id:true,name:true,status:true,order:true}} },
     });
   }
 

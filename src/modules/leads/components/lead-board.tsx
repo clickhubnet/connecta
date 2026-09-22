@@ -467,6 +467,7 @@ function KanbanView({
   onDelete: (id: string) => Promise<void>;
   onOpenDetails: (id: string) => Promise<void>;
 }) {
+  const [visible,setVisible]=useState<Record<string,number>>({});
   return (
     <div className="space-y-3">
       <div className="management-toolbar flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -510,7 +511,7 @@ function KanbanView({
               {loading ? (
                 <EmptyState text="Carregando" />
               ) : columnLeads.length ? (
-                columnLeads.map((lead) => (
+                columnLeads.slice(0,visible[column.id]??25).map((lead) => (
                   <LeadCard
                     key={lead.id}
                     lead={lead}
@@ -525,6 +526,7 @@ function KanbanView({
               ) : (
                 <EmptyState text="Sem leads" />
               )}
+              {columnLeads.length>(visible[column.id]??25)&&<Button variant="outline" className="w-full" onClick={()=>setVisible(current=>({...current,[column.id]:(current[column.id]??25)+25}))}>Carregar mais ({columnLeads.length-(visible[column.id]??25)})</Button>}
             </CardContent>
           </Card>
         );

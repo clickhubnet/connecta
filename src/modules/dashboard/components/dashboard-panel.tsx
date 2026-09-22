@@ -8,15 +8,13 @@ import { DashboardMetrics } from "@/modules/dashboard/components/dashboard-metri
 import type { DashboardMetricsData } from "@/modules/dashboard/components/dashboard-metrics";
 import { DashboardOverview } from "@/modules/dashboard/components/dashboard-overview";
 import type { DashboardOverviewData } from "@/modules/dashboard/components/dashboard-overview";
+import {useReportRefresh} from "@/hooks/use-report-refresh";
 import { useApiResource } from "@/hooks/use-api-resource";
-import { useCurrentUser } from "@/hooks/use-current-user";
-import { readCampaignHistory } from "@/modules/envio-em-massa/history";
 
-type DashboardData = DashboardMetricsData & DashboardOverviewData;
+
+type DashboardData = DashboardMetricsData & DashboardOverviewData & { dispatches: number };
 
 export function DashboardPanel() {
-  const { data: currentUser } = useCurrentUser();
-  const [dispatches, setDispatches] = useState<number | null>(null);
   const [period, setPeriod] = useState("7");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -33,22 +31,6 @@ export function DashboardPanel() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!currentUser?.id) { setDispatches(null); return; }
-    try {
-      const start = appliedPeriod === "custom" ? (appliedFrom ? new Date(`${appliedFrom}T00:00:00`) : null) : new Date();
-      const end = appliedPeriod === "custom" ? (appliedTo ? new Date(`${appliedTo}T23:59:59.999`) : null) : new Date();
-      if (appliedPeriod !== "custom" && start && end) {
-        start.setDate(start.getDate() - (Number(appliedPeriod) - 1));
-        start.setHours(0, 0, 0, 0);
-        end.setHours(23, 59, 59, 999);
-      }
-      setDispatches(readCampaignHistory(currentUser.id).filter((entry) => {
-        const date = new Date(entry.createdAt);
-        return (!start || date >= start) && (!end || date <= end);
-      }).length);
-    } catch { setDispatches(null); }
-  }, [currentUser?.id, appliedPeriod, appliedFrom, appliedTo, refreshKey]);
 
   const dashboardUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -64,6 +46,7 @@ export function DashboardPanel() {
 
   const customPeriod = period === "custom";
   const dashboard = useApiResource<DashboardData>(dashboardUrl);
+  useReportRefresh(dashboard.refresh);
 
   return (
     <div className="space-y-4">
@@ -128,7 +111,7 @@ export function DashboardPanel() {
           </Button>
         </div>
       </form>
-      <DashboardMetrics data={dashboard.data} loading={dashboard.loading} dispatches={dispatches} />
+      <DashboardMetrics data={dashboard.data} loading={dashboard.loading} dispatches={dashboard.data?.dispatches??null} />
 
       <DashboardOverview data={dashboard.data} loading={dashboard.loading} />
     </div>

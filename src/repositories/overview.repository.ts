@@ -1,3 +1,4 @@
+import {getDispatchStatistics,type DispatchStatistics} from "@/modules/envio-em-massa/dispatch-statistics";
 import { ExpenseStatus, LeadStatus, Prisma, type User } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
@@ -22,6 +23,7 @@ export type OverviewSummary = {
 };
 
 export type OverviewData = {
+  dispatches: DispatchStatistics;
   range: {
     preset: string;
     from: string;
@@ -61,7 +63,7 @@ export class OverviewRepository {
     const appointmentWhere = buildAppointmentAccessWhere(user);
     const expenseWhere = buildExpenseAccessWhere(user);
 
-    const [leads, wonLeads, conversations, appointments, expenses, users] = await Promise.all([
+    const [leads, wonLeads, conversations, appointments, expenses, users, dispatches] = await Promise.all([
       prisma.lead.findMany({
         where: {
           deletedAt: null,
@@ -76,7 +78,7 @@ export class OverviewRepository {
         where: {
           deletedAt: null,
           status: LeadStatus.WON,
-          ...wonLeadWhere,
+          AND: [wonLeadWhere],
           OR: [
             { wonAt: { gte: filters.from, lte: filters.to } },
             { wonAt: null, updatedAt: { gte: filters.from, lte: filters.to } },
@@ -124,6 +126,7 @@ export class OverviewRepository {
         select: { id: true, name: true },
         orderBy: { name: "asc" },
       }),
+      getDispatchStatistics(filters.from,filters.to,user),
     ]);
 
     const summary = buildSummary({ leads, wonLeads, conversations, appointments, expenses });
@@ -136,6 +139,7 @@ export class OverviewRepository {
     const timeline = buildTimeline({ filters, leads, wonLeads, conversations, appointments, expenses });
 
     return {
+      dispatches,
       range: {
         preset: filters.preset,
         from: filters.from.toISOString(),

@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { FormEvent, ReactNode, useMemo, useState } from "react";
 import {
   Ban,
@@ -345,8 +346,8 @@ function IconAction({
 }
 
 function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  return createPortal(
+    <div className="fixed inset-0 z-[100] !m-0 flex items-center justify-center bg-slate-950/55 p-4" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
       <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl border bg-background shadow-2xl">
         <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-background px-5 py-4">
           <h2 className="font-semibold">{title}</h2>
@@ -356,6 +357,6 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
         </div>
         <div className="p-5">{children}</div>
       </div>
-    </div>
+    </div>, document.body
   );
 }

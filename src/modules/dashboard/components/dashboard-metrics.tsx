@@ -58,7 +58,7 @@ export function DashboardMetrics({ data, loading, dispatches }: { data: Dashboar
           title="Disparos realizados"
           tone="amber"
           value={dispatches === null ? "—" : String(dispatches)}
-          helper="Campanhas no período · histórico local"
+          helper="Campanhas registradas no período"
           icon={icons.dispatches}
         />
 

@@ -70,7 +70,7 @@ export function DashboardOverview({ data, loading }: { data: DashboardOverviewDa
           <div className="rounded-xl border border-border/60 bg-card/95 px-4 py-3 text-right"><p className="text-xl font-semibold tracking-tight tabular-nums">{loading ? "—" : chartTotal.toLocaleString("pt-BR")}</p><p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Entradas no período</p></div>
         </div>
         <div className="mt-7 h-64 sm:h-72">
-          {loading || !chartData.length ? <div role="status" className="grid h-full place-items-center rounded-xl bg-muted/30 text-sm text-muted-foreground">{loading ? "Carregando evolução..." : "Nenhuma oportunidade neste período."}</div> :
+          {loading || !chartData.length || !chartTotal ? <div role="status" className="grid h-full place-items-center rounded-xl bg-muted/30 text-sm text-muted-foreground">{loading ? "Carregando evolução..." : "Nenhuma oportunidade neste período."}</div> :
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart accessibilityLayer data={chartData} margin={{ left: -22, right: 8, top: 10, bottom: 0 }}>
               <defs><linearGradient id="lead-area-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#d71920" stopOpacity={0.22} /><stop offset="100%" stopColor="#d71920" stopOpacity={0} /></linearGradient></defs>

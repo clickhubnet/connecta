@@ -19,9 +19,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {useReportRefresh} from "@/hooks/use-report-refresh";
+import type {DispatchStatistics} from "@/modules/envio-em-massa/dispatch-statistics";
 import { useApiResource } from "@/hooks/use-api-resource";
 
 type OverviewData = {
+  dispatches:DispatchStatistics;
   range: {
     preset: string;
     from: string;
@@ -69,6 +72,7 @@ const currency = new Intl.NumberFormat("pt-BR", {
 });
 
 export function OverviewPanel() {
+  const [revision,setRevision]=useState(0);
   const [period, setPeriod] = useState("month");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -81,8 +85,8 @@ export function OverviewPanel() {
     params.set("preset", appliedPeriod);
     if (appliedPeriod === "custom" && appliedFrom) params.set("from", appliedFrom);
     if (appliedPeriod === "custom" && appliedTo) params.set("to", appliedTo);
-    return `/api/overview?${params.toString()}`;
-  }, [appliedFrom, appliedPeriod, appliedTo]);
+    return `/api/overview?${params.toString()}&revision=${revision}`;
+  }, [appliedFrom, appliedPeriod, appliedTo,revision]);
 
   const exportUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -90,19 +94,22 @@ export function OverviewPanel() {
     if (appliedPeriod === "custom" && appliedFrom) params.set("from", appliedFrom);
     if (appliedPeriod === "custom" && appliedTo) params.set("to", appliedTo);
     return `/api/overview/export?${params.toString()}`;
-  }, [appliedFrom, appliedPeriod, appliedTo]);
+  }, [appliedFrom, appliedPeriod, appliedTo,revision]);
 
   const overview = useApiResource<OverviewData>(overviewUrl);
+  useReportRefresh(overview.refresh);
   const customPeriod = period === "custom";
   const data = overview.data;
 
   function applyFilters() {
+    setRevision(value=>value+1);
     setAppliedPeriod(period);
     setAppliedFrom(period === "custom" ? from : "");
     setAppliedTo(period === "custom" ? to : "");
   }
 
   function clearFilters() {
+    setRevision(value=>value+1);
     setPeriod("month");
     setFrom("");
     setTo("");
@@ -187,6 +194,14 @@ export function OverviewPanel() {
         <Button type="submit" className="rounded-xl">Aplicar</Button><Button type="button" variant="ghost" className="rounded-xl text-muted-foreground" onClick={clearFilters}><RotateCcw className="h-3.5 w-3.5" />Limpar</Button>
         <div className="flex flex-wrap gap-2 sm:ml-auto"><Button type="button" variant="outline" className="rounded-xl" asChild><a href={exportUrl}><Download className="h-4 w-4" />Excel</a></Button><Button type="button" variant="outline" className="rounded-xl" onClick={exportPdf} disabled={!data}><FileText className="h-4 w-4" />PDF</Button></div>
       </form>
+      <Card className="rounded-2xl border-border/70 p-5">
+        <h2 className="text-base font-semibold">Disparos em massa</h2>
+        <p className="mt-1 text-xs text-muted-foreground">Resultados registrados no servidor para o período selecionado.</p>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {[["Disparos efetuados",data?.dispatches.total],["Bem-sucedidos · aceitos pela Meta",data?.dispatches.accepted],["Com falhas",data?.dispatches.failed],["Sem confirmação",data?.dispatches.uncertain]].map(([label,value])=><div key={String(label)} className="rounded-xl border bg-muted/20 p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-2 text-xl font-semibold tabular-nums">{overview.loading?"—":Number(value??0).toLocaleString("pt-BR")}</p></div>)}
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">Aceita pela Meta não significa entregue. Falhas antigas salvas somente no navegador não estão incluídas.</p>
+      </Card>
       {overview.error && <p role="alert" className="rounded-xl border border-destructive/20 bg-card p-4 text-sm text-destructive">{overview.error}</p>}
       <p aria-live="polite" className="px-1 text-xs text-muted-foreground">{overview.loading ? "Atualizando relatório…" : data?.range.label ?? "Relatório indisponível"}</p>
       <section aria-label="Leitura da operação" className="rounded-2xl border border-border/70 bg-card px-5 py-5 sm:px-6">

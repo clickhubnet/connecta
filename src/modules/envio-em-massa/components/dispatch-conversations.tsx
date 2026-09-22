@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
 import { DispatchTags, type DispatchTag } from "./dispatch-tags";
+import { DispatchQuickMessages } from "./dispatch-quick-messages";
 import { useConversationRealtime } from "@/hooks/use-conversation-realtime";
 import { useApiResource } from "@/hooks/use-api-resource";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -312,6 +313,7 @@ export function DispatchConversations() {
               <div className="flex flex-wrap items-center gap-3"><Button type="button" variant="ghost" size="icon" className="lg:hidden" aria-label="Voltar às conversas" onClick={() => setSelectedId(null)}><ArrowLeft className="h-4 w-4" /></Button><p className="min-w-0 flex-1 truncate text-sm font-semibold">{thread?.lead?.name ?? thread?.phone ?? "Conversa"}</p>{thread?.state === "BLOCKED" ? <span className="rounded-full bg-rose-100 px-2.5 py-1 text-[10px] font-semibold text-rose-700">Bloqueado</span> : null}
               {user?.role === "ADMIN" && thread ? <label className="flex items-center gap-2 text-xs">Funcionário<select aria-label="Atribuir funcionário" disabled={saving} value={thread.ownerUserId ?? ""} onChange={(event) => void assign(event.target.value)} className="h-9 max-w-52 rounded-full border border-primary/20 bg-primary/10 px-3 text-xs font-medium text-primary"><option value="">Sem responsável</option>{detail.data?.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></label> : thread && <span className="inline-flex max-w-52 truncate rounded-full border bg-muted/60 px-3 py-1.5 text-xs font-medium">{thread.owner?.name ?? "Sem responsável"}</span>}
               {thread && <DispatchTags key={thread.id} conversationId={thread.id} tags={thread.tags??[]} onChange={async()=>{await Promise.all([inbox.refresh(),detail.refresh()]);}}/>}
+              {thread && <DispatchQuickMessages key={`quick-${thread.id}`} conversationId={thread.id} onSelect={setMessage} />}
               {thread ? <div className="flex items-center gap-1"><Button type="button" variant="outline" size="sm" disabled={saving} className="h-9 rounded-xl text-xs" onClick={() => void toggleBlocked()}>{thread.state === "BLOCKED" ? <CheckCircle2 className="h-4 w-4" /> : <Ban className="h-4 w-4" />}{thread.state === "BLOCKED" ? "Desbloquear" : "Bloquear"}</Button><Button type="button" variant="outline" size="sm" disabled={saving} className="h-9 rounded-xl text-xs text-destructive hover:text-destructive" onClick={() => void deleteConversation()}><Trash2 className="h-4 w-4" />Excluir</Button></div> : null}</div>
               {!!thread?.tags?.length && <div className="mt-2 flex flex-wrap gap-2">{thread.tags.map(tag=><span key={tag.id} className="inline-flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 text-xs"><span className="h-2 w-2 rounded-full" style={{backgroundColor:tag.color}}/>{tag.label}</span>)}</div>}
               {notice && <p role="status" className="mt-2 text-xs text-destructive">{notice}</p>}

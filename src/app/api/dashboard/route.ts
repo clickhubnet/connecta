@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     assertPermission(user, permissions.dashboardView);
     const { searchParams } = new URL(request.url);
     const overview = await dashboardService.getOverview(parseDashboardFilters(searchParams), user);
-    return NextResponse.json(successResponse("Dashboard consultada.", overview));
+    return NextResponse.json(successResponse("Dashboard consultada.", overview), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const authError = authErrorResponse(error);
     if (authError) return authError;

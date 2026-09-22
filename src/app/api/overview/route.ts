@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const filters = parseOverviewFilters(searchParams);
     const overview = await overviewService.getOverview(filters, user);
 
-    return NextResponse.json(successResponse("Visão geral consultada.", overview));
+    return NextResponse.json(successResponse("Visão geral consultada.", overview), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const authError = authErrorResponse(error);
     if (authError) return authError;
