@@ -15,7 +15,8 @@ function getConnectionString() {
 function getPool() {
   if (!globalThis.__connectaTelecomConversationPool) {
     globalThis.__connectaTelecomConversationPool = new Pool({
-      connectionString: getConnectionString(),
+      // Publishing is a short query; reserve session connections for LISTEN.
+      connectionString: process.env.DATABASE_URL || getConnectionString(),
       max: 2, idleTimeoutMillis: 10000, connectionTimeoutMillis: 5000,
       ssl: shouldUseSsl() ? { rejectUnauthorized: false } : undefined,
     });
