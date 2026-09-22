@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
+import { DispatchTags, type DispatchTag } from "./dispatch-tags";
 import { useConversationRealtime } from "@/hooks/use-conversation-realtime";
 import { useApiResource } from "@/hooks/use-api-resource";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
 type Message = { id: string; direction: string; body: string; createdAt: string };
-type Thread = { pendingReplyCount: number; id: string; phone: string; state: string; ownerUserId: string | null; lead: { name: string } | null; owner: { name: string } | null; messages: Message[] };
+type Thread = { tags: DispatchTag[]; pendingReplyCount: number; id: string; phone: string; state: string; ownerUserId: string | null; lead: { name: string } | null; owner: { name: string } | null; messages: Message[] };
 type InboxData = { conversations: Thread[]; employees: Array<{ id: string; name: string }> };
 type MediaBody = { kind: "media"; mediaKind: "image" | "video" | "audio" | "document"; fileName: string; mimeType: string; dataUrl: string; caption?: string };
 
@@ -36,6 +37,8 @@ export function DispatchConversations() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const recordingStartedRef = useRef(0);
   const [audioBusy, setAudioBusy] = useState(false);
   const recordingBusyRef = useRef(false);
   const audioSessionRef = useRef(0);
@@ -67,6 +70,14 @@ export function DispatchConversations() {
     });
     return () => cancelAnimationFrame(frame);
   }, [selectedId, thread?.messages[0]?.id]);
+
+  useEffect(() => {
+    if (!isRecording) return;
+    const update = () => setRecordingSeconds(Math.floor((Date.now()-recordingStartedRef.current)/1000));
+    update();
+    const timer = window.setInterval(update,250);
+    return () => clearInterval(timer);
+  },[isRecording]);
 
   async function assign(ownerUserId: string) {
     if (!selectedId) return;
@@ -213,6 +224,8 @@ export function DispatchConversations() {
       audioSourceRef.current = source;
       audioStreamRef.current = stream;
       setNotice("");
+      recordingStartedRef.current = Date.now();
+      setRecordingSeconds(0);
       setIsRecording(true);
     } catch {
       stream?.getTracks().forEach((track) => track.stop());
@@ -298,7 +311,9 @@ export function DispatchConversations() {
             <div className="shrink-0 border-b bg-card p-4">
               <div className="flex flex-wrap items-center gap-3"><Button type="button" variant="ghost" size="icon" className="lg:hidden" aria-label="Voltar às conversas" onClick={() => setSelectedId(null)}><ArrowLeft className="h-4 w-4" /></Button><p className="min-w-0 flex-1 truncate text-sm font-semibold">{thread?.lead?.name ?? thread?.phone ?? "Conversa"}</p>{thread?.state === "BLOCKED" ? <span className="rounded-full bg-rose-100 px-2.5 py-1 text-[10px] font-semibold text-rose-700">Bloqueado</span> : null}
               {user?.role === "ADMIN" && thread ? <label className="flex items-center gap-2 text-xs">Funcionário<select aria-label="Atribuir funcionário" disabled={saving} value={thread.ownerUserId ?? ""} onChange={(event) => void assign(event.target.value)} className="h-10 max-w-52 rounded-xl border bg-card px-3"><option value="">Sem responsável</option>{detail.data?.employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name}</option>)}</select></label> : thread && <span className="text-xs text-muted-foreground">{thread.owner?.name}</span>}
+              {thread && <DispatchTags key={thread.id} conversationId={thread.id} tags={thread.tags??[]} onChange={async()=>{await Promise.all([inbox.refresh(),detail.refresh()]);}}/>}
               {thread ? <div className="flex items-center gap-1"><Button type="button" variant="outline" size="sm" disabled={saving} className="h-9 rounded-xl text-xs" onClick={() => void toggleBlocked()}>{thread.state === "BLOCKED" ? <CheckCircle2 className="h-4 w-4" /> : <Ban className="h-4 w-4" />}{thread.state === "BLOCKED" ? "Desbloquear" : "Bloquear"}</Button><Button type="button" variant="outline" size="sm" disabled={saving} className="h-9 rounded-xl text-xs text-destructive hover:text-destructive" onClick={() => void deleteConversation()}><Trash2 className="h-4 w-4" />Excluir</Button></div> : null}</div>
+              {!!thread?.tags?.length && <div className="mt-2 flex flex-wrap gap-2">{thread.tags.map(tag=><span key={tag.id} className="inline-flex items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 text-xs"><span className="h-2 w-2 rounded-full" style={{backgroundColor:tag.color}}/>{tag.label}</span>)}</div>}
               {notice && <p role="status" className="mt-2 text-xs text-destructive">{notice}</p>}
             </div>
             <div ref={messagesScrollRef} onScroll={event => {
@@ -308,6 +323,11 @@ export function DispatchConversations() {
               {detail.error && <p role="alert" className="rounded-xl bg-card p-4 text-sm text-destructive">{detail.error}</p>}
               {detail.loading ? <p className="text-sm text-muted-foreground">Carregando mensagens…</p> : thread && [...thread.messages].reverse().map((item) => <div key={item.id} className={`flex ${item.direction === "inbound" ? "justify-start" : "justify-end"}`}><MessageBubble message={item} /></div>)}
             </div>
+            {(isRecording || audioBusy) && <div className="mx-4 mb-2 flex items-center gap-3 rounded-2xl border bg-muted/40 p-4 text-sm" role="status">
+              <span className={`h-2.5 w-2.5 rounded-full bg-red-600 ${isRecording?"animate-pulse":""}`}/>
+              <span className="font-medium">{isRecording?"Gravando áudio…":"Preparando áudio…"}</span>
+              {isRecording&&<span className="ml-auto font-mono tabular-nums">{String(Math.floor(recordingSeconds/60)).padStart(2,"0")}:{String(recordingSeconds%60).padStart(2,"0")}</span>}
+            </div>}
             {selectedFile ? (
               <div className="mx-4 mb-2 rounded-2xl border bg-muted/40 p-3 text-sm">
                 <div className="flex items-start justify-between gap-3">
@@ -322,7 +342,12 @@ export function DispatchConversations() {
               <div className="flex items-end gap-2">
                 <Button type="button" variant="ghost" size="icon" aria-label="Anexar mídia ou documento" disabled={audioBusy || isRecording || isSending} onClick={() => fileInputRef.current?.click()}><Paperclip className="h-4 w-4" /></Button>
                 <Button type="button" variant="ghost" size="icon" disabled={audioBusy || isSending} aria-label={isRecording ? "Parar gravação" : "Gravar áudio"} onClick={isRecording ? () => void stopRecording() : () => void startRecording()}>{isRecording ? <Square className="h-4 w-4 text-destructive" /> : <Mic className="h-4 w-4" />}</Button>
-                <Textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder={selectedFile ? "Legenda opcional..." : "Digite uma mensagem..."} rows={1} className="min-h-11 max-h-28 flex-1 resize-y rounded-2xl bg-muted/40 py-3" />
+                <Textarea value={message} onKeyDown={event=>{
+                  if(event.key==="Enter"&&!event.shiftKey&&!event.nativeEvent.isComposing&&event.keyCode!==229){
+                    event.preventDefault();
+                    if(!event.repeat)void sendCurrentMessage();
+                  }
+                }} onChange={(event) => setMessage(event.target.value)} placeholder={selectedFile ? "Legenda opcional..." : "Digite uma mensagem..."} rows={1} className="min-h-11 max-h-28 flex-1 resize-y rounded-2xl bg-muted/40 py-3" />
                 <Button type="button" size="icon" className="h-11 w-11 rounded-full" aria-label="Enviar mensagem" disabled={isSending || isRecording || audioBusy || (!message.trim() && !selectedFile)} onClick={() => void sendCurrentMessage()}><Send className="h-4 w-4" /></Button>
               </div>
             </div>}
