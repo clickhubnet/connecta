@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { MetaConfig } from "@/services/meta/meta.service";
 
 export const ACCOUNT_PREFIX = "private:whatsapp-account:";
+export const CHATBOT_AGENT_PREFIX = "private:chatbot-agent:";
 export const accountSchema = z.object({
   name: z.string().trim().min(1).max(120),
   phone: z.string().trim().regex(/^\+?[\d\s()-]+$/).transform(value => value.replace(/\D/g, "")).pipe(z.string().min(10).max(15)),
@@ -86,16 +87,7 @@ export async function listAccounts() {
     const custom = metadata?.value as { name?: string } | undefined;
     if (custom?.name?.trim()) environment.name = custom.name.trim();
   }
-  const agents = await prisma.agent.findMany({
-    where: { deletedAt: null, zapiWhatsappNumber: { not: null } },
-    select: { id: true, name: true, zapiWhatsappNumber: true, zapiInstanceId: true },
-  });
-  const agentAccounts = agents.filter(agent => agent.zapiWhatsappNumber?.trim()).map(agent => ({
-    id: "agent:" + agent.id, name: agent.name, phone: agent.zapiWhatsappNumber || "",
-    phoneNumberId: agent.zapiInstanceId || "", wabaId: "", apiVersion: "Z-API",
-    purpose: "CHATBOT", source: "agent", hasAccessToken: false, createdAt: "",
-  }));
-  return [...(environment ? [environment] : []), ...accounts, ...agentAccounts];
+  return [...(environment ? [environment] : []), ...accounts];
 }
 
 export async function getChatbotMetaConfig(phoneNumberId?: string): Promise<MetaConfig | null> {
@@ -129,5 +121,18 @@ export async function saveAccount(input: Account, editingId?: string) {
   const { accessToken: _access, verifyToken: _verify, ...fields } = input;
   const account: StoredAccount = { ...fields, id, createdAt: existing?.createdAt || new Date().toISOString(), credentials: seal({ accessToken, verifyToken }) };
   await prisma.appSetting.upsert({ where: { key }, create: { key, value: account }, update: { value: account } });
+  if (account.purpose === "CHATBOT") {
+    const agent = await prisma.agent.findFirst({
+      where: { deletedAt: null, name: { equals: account.name, mode: "insensitive" } },
+      select: { id: true },
+    });
+    if (agent) {
+      await prisma.appSetting.upsert({
+        where: { key: CHATBOT_AGENT_PREFIX + account.phoneNumberId },
+        create: { key: CHATBOT_AGENT_PREFIX + account.phoneNumberId, value: { agentId: agent.id } },
+        update: { value: { agentId: agent.id } },
+      });
+    }
+  }
   return publicAccount(account);
 }

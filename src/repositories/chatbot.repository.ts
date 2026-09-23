@@ -2,6 +2,7 @@ import { Prisma, type User } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { publishConversationEvent } from "@/server/realtime/conversation-events";
 import { withInboundLock } from "@/server/realtime/inbound-lock";
+import { CHATBOT_AGENT_PREFIX } from "@/modules/contas/accounts";
 
 export class ChatbotRepository {
   withInboundLock<T>(phone: string, work: () => Promise<T>) {
@@ -235,12 +236,22 @@ export class ChatbotRepository {
   }
 
   async getAgentByInstance(instanceId?: string) {
+    if (instanceId) {
+      const binding = await prisma.appSetting.findUnique({
+        where: { key: CHATBOT_AGENT_PREFIX + instanceId },
+        select: { value: true },
+      });
+      const agentId = (binding?.value as { agentId?: string } | undefined)?.agentId;
+      if (agentId) {
+        const agent = await prisma.agent.findFirst({
+          where: { id: agentId, active: true, deletedAt: null },
+          include: { plans: { where: { active: true, deletedAt: null }, orderBy: [{ order: "asc" }, { price: "asc" }] } },
+        });
+        if (agent) return agent;
+      }
+    }
     return prisma.agent.findFirst({
-      where: {
-        active: true,
-        deletedAt: null,
-        ...(instanceId ? { zapiInstanceId: instanceId } : {}),
-      },
+      where: { active: true, deletedAt: null },
       orderBy: { createdAt: "asc" },
       include: { plans: { where: { active: true, deletedAt: null }, orderBy: [{ order: "asc" }, { price: "asc" }] } },
     });
