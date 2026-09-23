@@ -97,7 +97,7 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const dispatchConversation = await findDispatchConversation(event.message.from);
+      const dispatchConversation = await findDispatchConversation(event.message.from, event.phoneNumberId);
       if (dispatchConversation) {
         const dispatchIncoming = await extractDispatchIncomingMessage(event.message, incoming.message);
         if (event.message.id) {
@@ -228,7 +228,10 @@ async function extractIncomingMessage(message: MetaMessage): Promise<{ message: 
   return { message: "" };
 }
 
-async function findDispatchConversation(phone: string) {
+async function findDispatchConversation(phone: string, phoneNumberId?: string) {
+  // The Meta webhook serves both the chatbot and mass-dispatch numbers. A reply
+  // can only enter the dispatch inbox when it arrived on the configured sender.
+  if (!phoneNumberId || phoneNumberId !== process.env.META_WHATSAPP_PHONE_NUMBER_ID?.trim()) return null;
   const normalizedPhone = phone.replace(/\D/g, "");
   if (!normalizedPhone) return null;
   const dispatchConversation = await prisma.chatConversation.findFirst({
@@ -240,25 +243,7 @@ async function findDispatchConversation(phone: string) {
     select: { id: true },
     orderBy: { updatedAt: "desc" },
   });
-  if (dispatchConversation) return dispatchConversation;
-
-  const existingConversation = await prisma.chatConversation.findFirst({
-    where: { phone: normalizedPhone, deletedAt: null },
-    select: { id: true, memory: true },
-    orderBy: { updatedAt: "desc" },
-  });
-  if (!existingConversation) return null;
-
-  return prisma.chatConversation.update({
-    where: { id: existingConversation.id },
-    data: {
-      memory: {
-        ...(existingConversation.memory && typeof existingConversation.memory === "object" && !Array.isArray(existingConversation.memory) ? existingConversation.memory : {}),
-        source: "mass-message",
-      },
-    },
-    select: { id: true },
-  });
+  return dispatchConversation;
 }
 
 async function extractDispatchIncomingMessage(message: MetaMessage, fallbackText: string) {

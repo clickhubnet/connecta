@@ -236,7 +236,11 @@ export class ChatbotRepository {
 
   async getAgentByInstance(instanceId?: string) {
     return prisma.agent.findFirst({
-      where: { active: true, deletedAt: null },
+      where: {
+        active: true,
+        deletedAt: null,
+        ...(instanceId ? { zapiInstanceId: instanceId } : {}),
+      },
       orderBy: { createdAt: "asc" },
       include: { plans: { where: { active: true, deletedAt: null }, orderBy: [{ order: "asc" }, { price: "asc" }] } },
     });

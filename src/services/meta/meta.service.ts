@@ -1,6 +1,6 @@
 import type { MetaTemplate } from "./template";
 
-type MetaConfig = { accessToken: string; phoneNumberId: string; businessAccountId: string; apiVersion: string };
+export type MetaConfig = { accessToken: string; phoneNumberId: string; businessAccountId: string; apiVersion: string };
 type MediaKind = "image" | "video" | "audio" | "document";
 
 export class MetaApiError extends Error {

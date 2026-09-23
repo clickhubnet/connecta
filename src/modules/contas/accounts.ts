@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import type { MetaConfig } from "@/services/meta/meta.service";
 
 export const ACCOUNT_PREFIX = "private:whatsapp-account:";
 export const accountSchema = z.object({
@@ -95,6 +96,22 @@ export async function listAccounts() {
     purpose: "CHATBOT", source: "agent", hasAccessToken: false, createdAt: "",
   }));
   return [...(environment ? [environment] : []), ...accounts, ...agentAccounts];
+}
+
+export async function getChatbotMetaConfig(phoneNumberId?: string): Promise<MetaConfig | null> {
+  if (!phoneNumberId || !/^\d+$/.test(phoneNumberId)) return null;
+  const record = await prisma.appSetting.findUnique({ where: { key: ACCOUNT_PREFIX + phoneNumberId }, select: { value: true } });
+  if (!record) return null;
+  const account = record.value as unknown as StoredAccount;
+  if (account.purpose !== "CHATBOT") return null;
+  const credentials = unseal(account.credentials);
+  if (!credentials.accessToken || !/^v\d+\.0$/.test(account.apiVersion)) return null;
+  return {
+    accessToken: credentials.accessToken,
+    phoneNumberId: account.phoneNumberId,
+    businessAccountId: account.wabaId,
+    apiVersion: account.apiVersion,
+  };
 }
 export async function saveAccount(input: Account, editingId?: string) {
   const id = editingId || input.phoneNumberId;

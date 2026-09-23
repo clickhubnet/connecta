@@ -4,6 +4,7 @@ import { ChatbotRepository } from "@/repositories/chatbot.repository";
 import { OpenAiService } from "@/services/openai/openai.service";
 import type { ExtractedCustomerData } from "@/services/openai/openai.service";
 import { MetaWhatsappService } from "@/services/meta/meta-whatsapp.service";
+import { getChatbotMetaConfig } from "@/modules/contas/accounts";
 import { onlyDigits } from "@/utils/mask";
 
 const VALID_BILLING_DAYS = [5, 8, 10, 15, 20, 25];
@@ -39,6 +40,7 @@ export class ChatbotEngineService {
   }) {
     const phone = normalizeWhatsappPhone(input.phone);
     const agent = await this.chatbotRepository.getAgentByInstance(input.instanceId);
+    const metaConfig = await getChatbotMetaConfig(input.instanceId);
     const conversation = await this.chatbotRepository.findOrCreateConversation(phone, agent?.id);
     const eventId = input.providerId ? `call:${input.providerId}` : undefined;
 
@@ -67,6 +69,7 @@ export class ChatbotEngineService {
     await this.whatsappService.sendText({
       phone,
       message: reply,
+      config: metaConfig,
     });
     await this.chatbotRepository.saveMessage({
       conversationId: conversation.id,
@@ -93,6 +96,7 @@ export class ChatbotEngineService {
     instanceId?: string; extractedData?: ExtractedCustomerData;
   }) {
     const phone = normalizeWhatsappPhone(input.phone);
+    const metaConfig = await getChatbotMetaConfig(input.instanceId);
     let alreadyReceived = false;
 
     if (input.providerId) {
@@ -136,7 +140,7 @@ export class ChatbotEngineService {
     }
 
     if (input.providerId) {
-      await this.whatsappService.markAsRead(input.providerId);
+      await this.whatsappService.markAsRead(input.providerId, metaConfig);
     }
 
     const next = await this.nextResponse({
@@ -163,6 +167,7 @@ export class ChatbotEngineService {
       phone,
       message: next.reply,
       delayTypingSeconds: typingEnabled ? delaySeconds : undefined,
+      config: metaConfig,
     });
     const memoryWithFollowUp = prepareFollowUpMemory(next.memory, next.state);
     await this.chatbotRepository.saveBotReply({
