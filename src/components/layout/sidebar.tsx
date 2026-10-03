@@ -28,7 +28,7 @@ export function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle:
             const items = visibleItems.filter((item) => item.group === section);
             if (!items.length) return null;
             return <div key={section} className={index ? "mt-5 border-t border-white/15 pt-5" : ""}>
-              {!collapsed && section && <p className="mb-2.5 px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-white/65">{section}</p>}
+              {!collapsed && section && <p className="mb-2.5 px-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/80">{section}</p>}
               <div className="space-y-1">{items.map((item) => {
                 const active = pathname === item.href;
                 const disabled = "comingSoon" in item && item.comingSoon;

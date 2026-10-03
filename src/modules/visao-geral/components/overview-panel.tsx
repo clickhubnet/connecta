@@ -124,6 +124,8 @@ export function OverviewPanel() {
     const printWindow = window.open("", "_blank", "width=1280,height=900");
     if (!printWindow) return;
 
+    const fontFamily = window.getComputedStyle(document.body).fontFamily;
+
     const rows = [
       ["Leads criados", String(data.summary.leadsCreated)],
       ["Leads ganhos", String(data.summary.leadsWon)],
@@ -153,7 +155,7 @@ export function OverviewPanel() {
         <head>
           <title>Visão Geral - CONNECTA TELECOM</title>
           <style>
-            body { font-family: Arial, sans-serif; padding: 32px; color: #0f172a; }
+            body { font-family: ${fontFamily}; padding: 32px; color: #0f172a; background: white; }
             h1, h2 { margin: 0 0 12px; }
             p { color: #475569; }
             .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
@@ -181,9 +183,13 @@ export function OverviewPanel() {
           </div>
         </body>
       </html>`);
+    document.fonts.forEach((font) => printWindow.document.fonts.add(font));
+    printWindow.addEventListener("load", async () => {
+      await printWindow.document.fonts.ready;
+      printWindow.focus();
+      printWindow.print();
+    }, { once: true });
     printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
   }
 
   return (
