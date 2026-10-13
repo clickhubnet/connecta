@@ -15,7 +15,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 
 type Message = { id: string; direction: string; body: string; createdAt: string };
 type Thread = { tags: DispatchTag[]; pendingReplyCount: number; id: string; phone: string; state: string; ownerUserId: string | null; lead: { name: string } | null; owner: { name: string } | null; messages: Message[] };
-type InboxData = { conversations: Thread[]; employees: Array<{ id: string; name: string }> };
+type InboxData = { conversations: Thread[]; employees: Array<{ id: string; name: string }>; total: number; limit: number; hasMore: boolean };
 type MediaBody = { kind: "media"; mediaKind: "image" | "video" | "audio" | "document"; fileName: string; mimeType: string; dataUrl: string; caption?: string };
 
 const filters = [
@@ -30,6 +30,7 @@ export function DispatchConversations() {
   const [filter, setFilter] = useState<(typeof filters)[number]["id"]>("all");
   const [search, setSearch] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [listLimit, setListLimit] = useState(100);
   const { data: user } = useCurrentUser();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -53,7 +54,7 @@ export function DispatchConversations() {
   const audioStreamRef = useRef<MediaStream | null>(null);
   const audioSamplesRef = useRef<Float32Array[]>([]);
   const audioSampleRateRef = useRef(44100);
-  const inbox = useApiResource<InboxData>(`/api/envio-em-massa/conversas?filter=${filter}&search=${encodeURIComponent(search)}`);
+  const inbox = useApiResource<InboxData>(`/api/envio-em-massa/conversas?filter=${filter}&search=${encodeURIComponent(search)}&limit=${listLimit}`);
   const detail = useApiResource<InboxData>(`/api/envio-em-massa/conversas?id=${selectedId ?? ""}`, Boolean(selectedId));
   const thread = selectedId && !detail.loading && !detail.error ? detail.data?.conversations.find((item) => item.id === selectedId) ?? null : null;
   const freeFormWindowOpen = hasOpenCustomerServiceWindow(thread);
@@ -303,7 +304,7 @@ export function DispatchConversations() {
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {inbox.error && <p role="alert" className="p-4 text-sm text-destructive">{inbox.error}</p>}
-            {inbox.loading ? <p className="p-6 text-xs text-muted-foreground">Carregando…</p> : inbox.data?.conversations.map((item) => <button key={item.id} type="button" onClick={() => { setSelectedId(item.id); setNotice(""); }} className={`w-full border-b p-4 text-left hover:bg-muted/40 ${selectedId === item.id ? "bg-primary/5" : ""}`}><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-sm font-semibold">{item.lead?.name ?? item.phone}</p>{item.pendingReplyCount > 0 && <span aria-label={`${item.pendingReplyCount} mensagens aguardando resposta`} title="Aguardando sua resposta" className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold leading-none text-white">{item.pendingReplyCount > 99 ? "99+" : item.pendingReplyCount}</span>}{item.state === "BLOCKED" ? <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-semibold text-rose-700">Bloqueado</span> : null}</div><p className="mt-1 truncate text-xs text-muted-foreground">{messagePreview(item.messages[0]?.body) ?? "Sem mensagens"}</p><span className={`mt-2 inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[10px] font-medium ${item.owner ? "border-primary/20 bg-primary/10 text-primary" : "border-border bg-muted/60 text-muted-foreground"}`}><span className="truncate">{item.owner?.name ?? "Sem responsável"}</span></span>
+            {inbox.loading ? <p className="p-6 text-xs text-muted-foreground">Carregando…</p> : inbox.data?.conversations.map((item) => <button key={item.id} type="button" onClick={() => { setSelectedId(item.id); setNotice(""); }} className={`w-full border-b p-4 text-left hover:bg-muted/40 ${selectedId === item.id ? "bg-primary/5" : ""}`}><div className="flex items-center gap-2"><p className="min-w-0 flex-1 truncate text-sm font-semibold">{item.lead?.name ?? item.phone}</p>{item.pendingReplyCount > 0 && <span aria-label={`${item.pendingReplyCount} mensagens aguardando resposta`} title="Aguardando sua resposta" className="inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold leading-none text-white">{item.pendingReplyCount > 99 ? "99+" : item.pendingReplyCount}</span>}{item.state === "BLOCKED" ? <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-semibold text-rose-700">Bloqueado</span> : null}</div><p className="mt-1 truncate text-xs text-muted-foreground">{messagePreview(item.messages[0]?.body) ?? "Sem mensagens"}</p>{item.messages[0]?.createdAt && <time dateTime={item.messages[0].createdAt} className="mt-1 block text-[11px] text-muted-foreground">{new Date(item.messages[0].createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</time>}<span className={`mt-2 inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-[10px] font-medium ${item.owner ? "border-primary/20 bg-primary/10 text-primary" : "border-border bg-muted/60 text-muted-foreground"}`}><span className="truncate">{item.owner?.name ?? "Sem responsável"}</span></span>
               {!!item.tags?.length && <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Etiquetas da conversa">
                 {item.tags.map(tag => <span key={tag.id} title={tag.label} className="inline-flex max-w-full items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 text-[11px] font-medium">
                   <span aria-hidden="true" className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
@@ -311,6 +312,12 @@ export function DispatchConversations() {
                 </span>)}
               </div>}
             </button>)}
+            {inbox.data?.hasMore && <div className="p-4 text-center">
+              <p className="mb-2 text-xs text-muted-foreground">{inbox.data.conversations.length} de {inbox.data.total} conversas</p>
+              <Button variant="outline" size="sm" disabled={!inbox.error && inbox.data.limit < listLimit} onClick={() => inbox.error ? void inbox.refresh() : setListLimit(value => value + 100)}>
+                {!inbox.error && inbox.data.limit < listLimit ? "Carregando…" : "Carregar conversas anteriores"}
+              </Button>
+            </div>}
             {!inbox.loading && !inbox.error && !inbox.data?.conversations.length && <div className="p-6 text-center"><MessageCircleMore aria-hidden="true" className="mx-auto mb-3 mt-8 h-8 w-8 text-muted-foreground/50" /><p role="status" className="text-sm font-medium">{search.trim() ? "Nenhuma conversa encontrada." : selected.empty}</p></div>}
           </div>
           <div className="shrink-0 border-t p-4"><Button asChild variant="outline" className="w-full rounded-xl"><Link href="/envio-em-massa"><Send className="h-4 w-4" />Ir para disparos</Link></Button></div>

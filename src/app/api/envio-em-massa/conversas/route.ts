@@ -25,6 +25,8 @@ export async function GET(request: Request) {
     const params = new URL(request.url).searchParams;
     const id = params.get("id");
     const search = params.get("search")?.trim() ?? "";
+    const requestedLimit = Number(params.get("limit") ?? "100");
+    const limit = Number.isSafeInteger(requestedLimit) && requestedLimit > 0 ? requestedLimit : 100;
     let pending: Array<{ id: string; count: number }> | undefined;
     const where: Prisma.ChatConversationWhereInput = {
       ...dispatchConversationScope(user),
@@ -42,10 +44,10 @@ export async function GET(request: Request) {
         where.id = { in: pending.map((row) => row.id) };
       }
     }
-    const conversations = await prisma.chatConversation.findMany({
-      where, orderBy: { updatedAt: "desc" }, take: id ? 1 : 100,
+    const [conversations, total] = await Promise.all([prisma.chatConversation.findMany({
+      where, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], take: id ? 1 : limit,
       select: { id: true, memory: true, phone: true, ownerUserId: true, state: true, lead: { select: { name: true } }, owner: { select: { name: true } }, messages: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: id ? 100 : 1, select: { id: true, direction: true, body: true, createdAt: true } } },
-    });
+    }), prisma.chatConversation.count({ where })]);
     if (id && !conversations.length) return NextResponse.json(errorResponse("Conversa não encontrada."), { status: 404 });
     pending ??= await prisma.$queryRaw<Array<{ id: string; count: number }>>(pendingRepliesQuery(user, conversations.map(item => item.id)));
     const pendingCounts = new Map(pending.map(item => [item.id, item.count]));
@@ -56,7 +58,7 @@ export async function GET(request: Request) {
       return {...item, pendingReplyCount:pendingCounts.get(item.id)??0, tags:catalog.filter(tag=>Array.isArray(ids)&&ids.includes(tag.id)).map(({id,label,color})=>({id,label,color}))};
     });
     const employees = user.role === "ADMIN" ? await prisma.user.findMany({ where: { role: { in: ["EMPLOYEE", "ADMIN"] }, status: "ACTIVE", deletedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : [];
-    return NextResponse.json(successResponse("Conversas consultadas.", { conversations: conversationsWithPending, employees }), { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(successResponse("Conversas consultadas.", { conversations: conversationsWithPending, employees, total, limit, hasMore: !id && conversations.length < total }), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json(errorResponse("Não foi possível consultar as conversas."), { status: 500 });
   }

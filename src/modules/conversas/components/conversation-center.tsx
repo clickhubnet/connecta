@@ -681,7 +681,7 @@ export function ConversationCenter() {
                     </div>
                     <p className="text-xs text-muted-foreground">{conversation.phone}</p>
                   </div>
-                  <span className="text-[11px] text-muted-foreground">{formatTime(conversation.updatedAt)}</span>
+                  <span className="text-[11px] text-muted-foreground">{conversation.lastMessage?.createdAt ? new Date(conversation.lastMessage.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : "Sem mensagens"}</span>
                   </div>
                   <p className="mt-1.5 pl-14 truncate text-xs text-muted-foreground">{conversation.lastMessage?.body ?? "Sem mensagens ainda"}</p>
                   <div className="mt-2 flex flex-wrap gap-1 pl-14 text-[9px]">

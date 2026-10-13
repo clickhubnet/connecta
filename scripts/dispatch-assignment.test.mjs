@@ -14,6 +14,7 @@ const conversationId = "00000000-0000-4000-8000-000000000005";
 let user = { id: adminId, role: "ADMIN" };
 let ownerUserId = null;
 let updates = 0;
+const conversations = Array.from({ length: 250 }, (_, index) => ({ id: String(index), memory: {}, ownerUserId: null }));
 const users = [
   { id: adminId, name: "Administrador", role: "ADMIN", status: "ACTIVE", deletedAt: null },
   { id: employeeId, name: "Funcionário", role: "EMPLOYEE", status: "ACTIVE", deletedAt: null },
@@ -28,7 +29,8 @@ const tx = {
     findFirst: async ({ where }) => users.find(item => matches(where, item)) ?? null,
   },
   chatConversation: {
-    findMany: async () => [{ id: conversationId, memory: {}, ownerUserId }],
+    findMany: async ({ take }) => conversations.slice(0, take),
+    count: async () => conversations.length,
     updateMany: async ({ data }) => { ownerUserId = data.ownerUserId; updates++; return { count: 1 }; },
   },
   appSetting: { findMany: async () => [] },
@@ -51,7 +53,16 @@ vm.runInContext(ts.transpileModule(readFileSync("src/app/api/envio-em-massa/conv
 }).outputText, ctx);
 const response = await ctx.exports.GET(new Request("http://local/api/envio-em-massa/conversas"));
 assert.equal(response.status, 200);
-assert.deepEqual((await response.json()).data.employees.map(item => item.id), [adminId, employeeId]);
+const initial = (await response.json()).data;
+assert.deepEqual(initial.employees.map(item => item.id), [adminId, employeeId]);
+assert.equal(initial.conversations.length, 100);
+assert.equal(initial.total, 250);
+assert.equal(initial.hasMore, true);
+const olderResponse = await ctx.exports.GET(new Request("http://local/api/envio-em-massa/conversas?limit=300"));
+const older = (await olderResponse.json()).data;
+assert.equal(older.conversations.length, 250);
+assert.equal(older.conversations.at(-1).id, "249", "Old conversations remain accessible beyond the first 100");
+assert.equal(older.hasMore, false);
 async function assign(id) {
   return ctx.exports.PATCH(new Request("http://local", { method: "PATCH", body: JSON.stringify({ conversationId, ownerUserId: id }) }));
 }
