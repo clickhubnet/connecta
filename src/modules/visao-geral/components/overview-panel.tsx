@@ -54,10 +54,10 @@ type OverviewData = {
 };
 
 const periodOptions = [
-  { value: "day", label: "Dia" },
-  { value: "week", label: "Semana" },
-  { value: "month", label: "Mês" },
-  { value: "quarter", label: "3 meses" },
+  { value: "day", label: "Hoje" },
+  { value: "week", label: "Últimos 7 dias" },
+  { value: "month", label: "Últimos 30 dias" },
+  { value: "quarter", label: "Últimos 90 dias" },
   { value: "semester", label: "6 meses" },
   { value: "year", label: "1 ano" },
   { value: "custom", label: "Período" },

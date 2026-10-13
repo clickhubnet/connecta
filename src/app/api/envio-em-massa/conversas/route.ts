@@ -55,7 +55,7 @@ export async function GET(request: Request) {
       const ids = (memory as {dispatchTagIds?:unknown})?.dispatchTagIds;
       return {...item, pendingReplyCount:pendingCounts.get(item.id)??0, tags:catalog.filter(tag=>Array.isArray(ids)&&ids.includes(tag.id)).map(({id,label,color})=>({id,label,color}))};
     });
-    const employees = user.role === "ADMIN" ? await prisma.user.findMany({ where: { role: "EMPLOYEE", status: "ACTIVE", deletedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : [];
+    const employees = user.role === "ADMIN" ? await prisma.user.findMany({ where: { role: { in: ["EMPLOYEE", "ADMIN"] }, status: "ACTIVE", deletedAt: null }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : [];
     return NextResponse.json(successResponse("Conversas consultadas.", { conversations: conversationsWithPending, employees }), { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json(errorResponse("Não foi possível consultar as conversas."), { status: 500 });
@@ -86,15 +86,15 @@ export async function PATCH(request: Request) {
     requireDispatchAdministrator(user);
     const ownerUserId = body.data.ownerUserId ?? null;
     const count = await prisma.$transaction(async (tx) => {
-      if (ownerUserId && !await tx.user.findFirst({ where: { id: ownerUserId, role: "EMPLOYEE", status: "ACTIVE", deletedAt: null } })) return -1;
+      if (ownerUserId && !await tx.user.findFirst({ where: { id: ownerUserId, role: { in: ["EMPLOYEE", "ADMIN"] }, status: "ACTIVE", deletedAt: null } })) return -1;
       return (await tx.chatConversation.updateMany({ where: { ...dispatchScope, id: conversationId }, data: { ownerUserId } })).count;
     });
-    if (count === -1) return NextResponse.json(errorResponse("Funcionário indisponível."), { status: 400 });
+    if (count === -1) return NextResponse.json(errorResponse("Responsável indisponível."), { status: 400 });
     if (!count) return NextResponse.json(errorResponse("Conversa não encontrada."), { status: 404 });
     await publishConversationEvent({ conversationId, type: "assignment_updated" });
     return NextResponse.json(successResponse("Responsável atualizado.", null));
   } catch (error) {
-    return authErrorResponse(error) ?? NextResponse.json(errorResponse("Não foi possível atribuir o funcionário."), { status: 500 });
+    return authErrorResponse(error) ?? NextResponse.json(errorResponse("Não foi possível atribuir o responsável."), { status: 500 });
   }
 }
 

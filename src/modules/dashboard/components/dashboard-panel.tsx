@@ -15,10 +15,10 @@ import { useApiResource } from "@/hooks/use-api-resource";
 type DashboardData = DashboardMetricsData & DashboardOverviewData & { dispatches: number };
 
 export function DashboardPanel() {
-  const [period, setPeriod] = useState("7");
+  const [period, setPeriod] = useState("30");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const [appliedPeriod, setAppliedPeriod] = useState("7");
+  const [appliedPeriod, setAppliedPeriod] = useState("30");
   const [appliedFrom, setAppliedFrom] = useState("");
   const [appliedTo, setAppliedTo] = useState("");
   const [refreshKey, setRefreshKey] = useState(() => Date.now());
@@ -99,8 +99,8 @@ export function DashboardPanel() {
             onClick={() => {
               setFrom("");
               setTo("");
-              setPeriod("7");
-              setAppliedPeriod("7");
+              setPeriod("30");
+              setAppliedPeriod("30");
               setAppliedFrom("");
               setAppliedTo("");
               setRefreshKey(Date.now());
