@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { headers } from "next/headers";
+import { canonicalOrigin } from "@/lib/site-config";
 import { ThemeProvider } from "@/providers/theme-provider";
 import "./globals.css";
 
@@ -17,7 +19,8 @@ export const viewport: Viewport = {
   themeColor: "#D71920",
 };
 
-export const metadata: Metadata = {
+const siteMetadata: Metadata = {
+  metadataBase: new URL(canonicalOrigin),
   title: "CONNECTA TELECOM CRM",
   description: "CRM comercial da Connecta Telecom com atendimento, vendas e automações.",
   icons: {
@@ -30,6 +33,13 @@ export const metadata: Metadata = {
     apple: { url: "/brand/connecta-apple-icon.png?v=2", sizes: "180x180", type: "image/png" },
   },
 };
+
+export async function generateMetadata(): Promise<Metadata> {
+  const pathname = (await headers()).get("x-connecta-pathname") || "/";
+  const canonical = new URL(canonicalOrigin);
+  canonical.pathname = pathname;
+  return { ...siteMetadata, alternates: { canonical: canonical.toString() } };
+}
 
 export default function RootLayout({
   children,

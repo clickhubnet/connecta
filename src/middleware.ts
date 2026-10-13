@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { authCookieName, verifyAuthToken } from "@/lib/jwt";
 import { visualPreviewResponse } from "@/lib/visual-preview";
+import { canonicalOrigin, legacyPageHosts } from "@/lib/site-config";
 
 const publicRoutes = [
   "/login",
@@ -16,8 +17,21 @@ export async function middleware(request: NextRequest) {
   if (preview) return preview;
   const pathname = request.nextUrl.pathname;
 
+  const isPage = pathname !== "/api" && !pathname.startsWith("/api/") &&
+    !pathname.startsWith("/_next/") && !pathname.startsWith("/brand/") &&
+    !/\.[^/]+$/.test(pathname);
+  if (isPage && ["GET", "HEAD"].includes(request.method) && legacyPageHosts.includes(request.nextUrl.hostname)) {
+    const canonicalUrl = new URL(pathname + request.nextUrl.search, canonicalOrigin);
+    return NextResponse.redirect(canonicalUrl, 308);
+  }
+
+  const requestHeaders = new Headers(request.headers);
+  // Overwrite client input so metadata always reflects the actual route.
+  requestHeaders.set("x-connecta-pathname", pathname);
+  const next = () => NextResponse.next({ request: { headers: requestHeaders } });
+
   if (publicRoutes.some((route) => pathname.startsWith(route))) {
-    return NextResponse.next();
+    return next();
   }
 
   const token = request.cookies.get(authCookieName)?.value;
@@ -41,7 +55,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  return next();
 }
 
 export const config = {

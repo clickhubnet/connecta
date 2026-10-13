@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { cn } from "@/utils/cn";
+import { metaWebhookUrl } from "@/lib/site-config";
 
 type WhatsappAccount = {
   id: string;
@@ -54,10 +55,7 @@ export function WhatsappAccountsPanel() {
   const [saving, setSaving] = useState(false);
 
   const key = useMemo(() => storageKey(user?.id), [user?.id]);
-  const webhookUrl = useMemo(() => {
-    if (typeof window === "undefined") return "/api/webhooks/meta";
-    return `${window.location.origin}/api/webhooks/meta`;
-  }, []);
+  const webhookUrl = metaWebhookUrl;
 
   async function loadAccounts() {
     const response = await fetch("/api/whatsapp-accounts", { cache: "no-store" });
