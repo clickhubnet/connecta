@@ -12,6 +12,9 @@ type ContactResult = {
   status: "accepted" | "failed" | "uncertain";
   detail: string;
   providerMessageId?: string;
+  attemptedAt?: string;
+  processedAt?: string;
+  errorCode?: number;
 };
 
 export type MassTemplateOption = MetaTemplate & {
@@ -45,10 +48,12 @@ export class MassMessageService {
   }
 
   async send(rawInput: unknown, user?: { id: string; role: string }): Promise<MassMessageResult> {
+    const startedAt = new Date().toISOString();
     const input = parseInput(rawInput);
     const contacts = parseValidation(() => parseContacts(input.contactsText));
     let templatePayload: Record<string, unknown> | undefined;
     let templateName = input.templateName;
+    let campaignMessage = input.message;
     if (input.mode === "template") {
     const templates = await this.metaService.listTemplates();
     const template = templates.find((item) => input.templateId ? item.id === input.templateId : item.name === input.templateName && item.language === input.language);
@@ -57,6 +62,11 @@ export class MassMessageService {
       throw new MassMessageValidationError("Template aprovado não encontrado nesta conta da Meta.");
     }
     templateName = template.name;
+    const option = toTemplateOption(template);
+    campaignMessage = option.previewText.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (placeholder, name: string) => {
+      const index = option.bodyVariables.indexOf(name.trim());
+      return index >= 0 ? input.bodyValues[index] ?? placeholder : placeholder;
+    });
 
     const headerFormat = template.components.find((item) => item.type === "HEADER")?.format?.toLowerCase();
     if (input.mediaType && input.mediaType !== headerFormat) throw new MassMessageValidationError("O tipo de mídia não corresponde ao cabeçalho do template aprovado.");
@@ -69,10 +79,12 @@ export class MassMessageService {
 
     const batchId = randomUUID();
     const results = await mapWithConcurrency(contacts, CONCURRENCY, async (phone): Promise<ContactResult> => {
+      const attemptedAt = new Date().toISOString();
       try {
         if (await isBlockedDispatchContact(phone)) {
           return {
             phone,
+            attemptedAt, processedAt: new Date().toISOString(),
             status: "failed",
             detail: "Contato bloqueado nas conversas de disparo.",
           };
@@ -94,11 +106,13 @@ export class MassMessageService {
           status: "accepted",
           detail: "Mensagem aceita pela Meta para processamento.",
           providerMessageId,
+          attemptedAt, processedAt: new Date().toISOString(),
         };
       } catch (error) {
         if (isUncertainMetaError(error)) {
           return {
             phone,
+            attemptedAt, processedAt: new Date().toISOString(),
             status: "uncertain",
             detail: error instanceof Error ? error.message : "Sem confirmação da Meta. Verifique antes de reenviar.",
           };
@@ -106,6 +120,8 @@ export class MassMessageService {
 
         return {
           phone,
+          attemptedAt, processedAt: new Date().toISOString(),
+          ...(error instanceof MetaApiError && error.providerCode ? { errorCode: error.providerCode } : {}),
           status: "failed",
           detail: error instanceof Error ? error.message : "Falha ao enviar.",
         };
@@ -120,7 +136,10 @@ export class MassMessageService {
       contacts: results,
     };
     await prisma.appSetting.create({data:{key:"private:dispatch-result:"+batchId,value:{
-      userId:user?.id??null,total:result.total,accepted:result.accepted,failed:result.failed,uncertain:result.uncertain
+      userId:user?.id??null,startedAt,mode:input.mode,title:input.mode === "text" ? "Campanha de mensagem escrita" : templateName,
+      message:campaignMessage,
+      isTest: Boolean(rawInput && typeof rawInput === "object" && "isTest" in rawInput && rawInput.isTest === true),
+      total:result.total,accepted:result.accepted,failed:result.failed,uncertain:result.uncertain,contacts:result.contacts
     }}});
     await publishConversationEvent({type:"dispatch_completed"});
     return result;

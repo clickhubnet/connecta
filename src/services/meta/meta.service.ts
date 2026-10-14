@@ -4,7 +4,7 @@ export type MetaConfig = { accessToken: string; phoneNumberId: string; businessA
 type MediaKind = "image" | "video" | "audio" | "document";
 
 export class MetaApiError extends Error {
-  constructor(message: string, public readonly uncertain = false, public readonly statusCode = 502) { super(message); }
+  constructor(message: string, public readonly uncertain = false, public readonly statusCode = 502, public readonly providerCode?: number) { super(message); }
 }
 
 export function getMetaConfig(): MetaConfig {
@@ -65,7 +65,7 @@ export class MetaService {
         132015: "Template pausado.", 132016: "Template desativado.",
       };
       // Do not expose provider response bodies: they may contain tokens or personal data.
-      throw new MetaApiError(`Meta${typeof code === "number" ? ` (${code})` : ` (HTTP ${response.status})`}: ${hints[code ?? 0] ?? "A solicitação não foi concluída. Verifique a conta e o template no WhatsApp Manager."}`, sending && response.status >= 500);
+      throw new MetaApiError(`Meta${typeof code === "number" ? ` (${code})` : ` (HTTP ${response.status})`}: ${hints[code ?? 0] ?? "A solicitação não foi concluída. Verifique a conta e o template no WhatsApp Manager."}`, sending && response.status >= 500, 502, code);
     }
     return payload;
   }

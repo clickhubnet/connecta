@@ -8,6 +8,7 @@ import { ChatbotEngineService } from "@/modules/chatbot/services/chatbot-engine.
 import { ChatbotRepository } from "@/repositories/chatbot.repository";
 import { MetaWhatsappService } from "@/services/meta/meta-whatsapp.service";
 import { OpenAiService, type ExtractedCustomerData } from "@/services/openai/openai.service";
+import { recordDeliveryStatuses } from "@/modules/envio-em-massa/services/delivery-status.service";
 
 const chatbotEngineService = new ChatbotEngineService();
 const chatbotRepository = new ChatbotRepository();
@@ -78,9 +79,10 @@ export async function POST(request: Request) {
   try {
     const rawPayload = (await request.json()) as MetaWebhookPayload;
     const events = flattenMessages(rawPayload);
+    const recordedStatuses = await recordDeliveryStatuses(rawPayload);
 
     if (!events.length) {
-      return NextResponse.json(successResponse("Webhook sem mensagens de entrada.", { ignored: true }));
+      return NextResponse.json(successResponse("Confirmações recebidas.", { ignored: recordedStatuses === 0, recordedStatuses }));
     }
 
     const results = [];

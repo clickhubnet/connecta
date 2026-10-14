@@ -95,6 +95,7 @@ export function MassMessagePanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contactsText: test ? testPhone : contacts,
+          isTest: test,
           mode, message, templateName, language, mediaType,
           headerValues,
           bodyValues,
