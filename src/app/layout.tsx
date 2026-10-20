@@ -25,11 +25,11 @@ const siteMetadata: Metadata = {
   description: "CRM comercial da Connecta Telecom com atendimento, vendas e automações.",
   icons: {
     icon: [
-      { url: "/brand/connecta-favicon-32.png?v=3", type: "image/png", sizes: "32x32" },
-      { url: "/brand/connecta-favicon-16.png?v=3", type: "image/png", sizes: "16x16" },
+      { url: "/brand/connecta-favicon-32.png?v=4", type: "image/png", sizes: "32x32" },
+      { url: "/brand/connecta-favicon-16.png?v=4", type: "image/png", sizes: "16x16" },
     ],
-    shortcut: "/favicon.ico?v=3",
-    apple: { url: "/brand/connecta-apple-icon.png?v=3", sizes: "180x180", type: "image/png" },
+    shortcut: "/favicon.ico?v=4",
+    apple: { url: "/brand/connecta-apple-icon.png?v=4", sizes: "180x180", type: "image/png" },
   },
 };
 
