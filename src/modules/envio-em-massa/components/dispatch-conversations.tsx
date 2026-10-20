@@ -297,7 +297,10 @@ export function DispatchConversations() {
           <div className="shrink-0 border-b p-4">
             <div className="mb-4 flex items-center justify-between gap-2">
               <div><p className="text-xs font-semibold">Caixa de entrada</p><p className="mt-1 text-xs text-muted-foreground">{selected.label}</p><p className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground"><span className={`h-1.5 w-1.5 rounded-full ${realtimeConnected ? "bg-emerald-500" : "bg-amber-500"}`} />{realtimeConnected ? "Em tempo real" : "Reconectando…"}</p></div>
-              <Button type="button" variant="ghost" className="h-8 rounded-lg px-2 text-xs" aria-expanded={filtersOpen} aria-controls="dispatch-filters" onClick={() => setFiltersOpen(!filtersOpen)}><Filter className="h-4 w-4" />Filtros</Button>
+              <div className="flex shrink-0 items-center gap-1">
+                <Button type="button" variant={filter === "unanswered" ? "default" : "ghost"} className="h-8 rounded-lg px-2 text-xs" aria-pressed={filter === "unanswered"} onClick={() => setFilter(filter === "unanswered" ? "all" : "unanswered")}>{filter === "unanswered" ? "Todas" : "Não respondidas"}</Button>
+                <Button type="button" variant="ghost" className="h-8 rounded-lg px-2 text-xs" aria-expanded={filtersOpen} aria-controls="dispatch-filters" onClick={() => setFiltersOpen(!filtersOpen)}><Filter className="h-4 w-4" />Filtros</Button>
+              </div>
             </div>
             {filtersOpen && <div id="dispatch-filters" role="group" aria-label="Filtrar conversas" className="mb-4 flex flex-wrap gap-2">{filters.map((item) => <button key={item.id} type="button" aria-pressed={filter === item.id} onClick={() => setFilter(item.id)} className={`rounded-full px-3 py-2 text-xs font-medium transition-colors ${filter === item.id ? "bg-primary text-white" : "bg-muted text-muted-foreground hover:text-foreground"}`}>{item.label}</button>)}</div>}
             <div className="relative"><Search aria-hidden="true" className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" /><Input aria-label="Pesquisar conversas dos disparos" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar contato ou número" className="h-11 rounded-xl border-transparent bg-muted/60 pl-9 text-xs" /></div>
