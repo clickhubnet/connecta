@@ -298,7 +298,7 @@ export function DispatchConversations() {
             <div className="mb-4 flex items-center justify-between gap-2">
               <div><p className="text-xs font-semibold">Caixa de entrada</p><p className="mt-1 text-xs text-muted-foreground">{selected.label}</p><p className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground"><span className={`h-1.5 w-1.5 rounded-full ${realtimeConnected ? "bg-emerald-500" : "bg-amber-500"}`} />{realtimeConnected ? "Em tempo real" : "Reconectando…"}</p></div>
               <div className="flex shrink-0 items-center gap-1">
-                <Button type="button" variant={filter === "unanswered" ? "default" : "ghost"} className="h-8 rounded-lg px-2 text-xs" aria-pressed={filter === "unanswered"} onClick={() => setFilter(filter === "unanswered" ? "all" : "unanswered")}>{filter === "unanswered" ? "Todas" : "Não respondidas"}</Button>
+                <Button type="button" variant={filter === "unanswered" ? "default" : "outline"} className="h-8 rounded-lg px-2 text-xs" aria-pressed={filter === "unanswered"} onClick={() => setFilter(filter === "unanswered" ? "all" : "unanswered")}>{filter === "unanswered" ? "Todas" : "Não respondidas"}</Button>
                 <Button type="button" variant="ghost" className="h-8 rounded-lg px-2 text-xs" aria-expanded={filtersOpen} aria-controls="dispatch-filters" onClick={() => setFiltersOpen(!filtersOpen)}><Filter className="h-4 w-4" />Filtros</Button>
               </div>
             </div>
